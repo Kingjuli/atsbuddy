@@ -12,7 +12,9 @@ export class AIManager {
   private client: OpenAI;
 
   constructor(apiKey?: string) {
-    this.client = new OpenAI({ apiKey: apiKey || process.env.OPENAI_API_KEY });
+    this.client = new OpenAI({
+      apiKey: apiKey || process.env.OPENAI_API_KEY,
+    });
   }
 
   async createTextJsonResponse(params: {
@@ -63,7 +65,7 @@ export class AIManager {
       },
       max_output_tokens: maxOutputTokens,
       temperature,
-      metadata: { ...(metadata || {}), requestId },
+      metadata: { ...(metadata || {}), requestId, project: "atsbuddy" },
     };
 
     const startedAt = Date.now();

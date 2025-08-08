@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { promises as fsp } from "node:fs";
 import path from "node:path";
+import { logger } from "@/lib/logger";
 
 export type MetricRecord = {
   timestamp: number;
@@ -20,7 +21,9 @@ const MAX_RECORDS = 500;
 const metricsBuffer: MetricRecord[] = [];
 
 // Simple JSON file persistence
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = process.env.METRICS_DIR
+  ? path.resolve(process.env.METRICS_DIR)
+  : path.join(process.cwd(), "data");
 const METRICS_FILE = path.join(DATA_DIR, "metrics.json");
 let saveChain: Promise<void> = Promise.resolve();
 
@@ -42,10 +45,17 @@ function loadMetricsFromDisk() {
   }
 }
 
-function persistMetricsToDisk(): Promise<void> {
+async function persistMetricsToDisk(): Promise<void> {
   ensureDataDir();
+  const tmp = METRICS_FILE + ".tmp";
   const json = JSON.stringify(metricsBuffer.slice(-MAX_RECORDS));
-  return fsp.writeFile(METRICS_FILE, json, "utf8").then(() => void 0).catch(() => void 0);
+  try {
+    await fsp.writeFile(tmp, json, "utf8");
+    await fsp.rename(tmp, METRICS_FILE);
+  } catch (err) {
+    try { await fsp.unlink(tmp); } catch {}
+    logger.warn("persistMetricsToDisk failed", { error: err instanceof Error ? err.message : String(err), file: METRICS_FILE });
+  }
 }
 
 export function recordMetric(rec: MetricRecord) {
@@ -56,10 +66,13 @@ export function recordMetric(rec: MetricRecord) {
 }
 
 export function getMetrics(): MetricRecord[] {
+  // Reload from disk for cross-process visibility
+  loadMetricsFromDisk();
   return [...metricsBuffer].reverse();
 }
 
 export function getTotals() {
+  loadMetricsFromDisk();
   let totalCost = 0;
   let totalRequests = 0;
   let totalInput = 0;

@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       schema: jsonSchema,
       model: "gpt-5-nano",
       temperature: 1,
-      maxOutputTokens: 5000,
+      maxOutputTokens: 15000,
       requestId,
       metadata: { endpoint: "analyze" },
     });
@@ -136,9 +136,8 @@ export async function POST(req: NextRequest) {
     const message = error instanceof Error ? error.message : String(error);
     const durationMs = Date.now() - startedAt;
     logger.error("analyze.error", { requestId, endpoint: "/api/analyze", durationMs, error: message });
-    const responseMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { ok: false, requestId, error: responseMessage },
+      { ok: false, requestId, error: "Unexpected server error" },
       { status: 400, headers: { "x-request-id": requestId } }
     );
   }
