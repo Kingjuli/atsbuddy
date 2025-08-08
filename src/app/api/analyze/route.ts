@@ -1,8 +1,10 @@
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
 import { z } from "zod";
 import { extractTextFromFile } from "@/lib/parse";
+import crypto from "node:crypto";
+import { AIManager } from "@/lib/aiManager";
+import { logger } from "@/lib/logger";
 
 const AnalyzeSchema = z.object({
   resumeText: z.string().min(50, "Resume text seems too short; upload a real resume."),
@@ -15,9 +17,11 @@ const AnalyzeSchema = z.object({
 // Lazy-initialize the OpenAI client inside the handler to avoid build-time env access
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const contentType = req.headers.get("content-type") || "";
+  logger.info("analyze.start", { requestId, endpoint: "/api/analyze", contentType });
   try {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const contentType = req.headers.get("content-type") || "";
     let resumeText = "";
     let jobText = "";
     let meta: { filename?: string; wordCount?: number } | undefined;
@@ -27,6 +31,8 @@ export async function POST(req: NextRequest) {
       const file = form.get("file");
       const jd = form.get("jobText");
       if (!(file instanceof File)) {
+        const durationMs = Date.now() - startedAt;
+        logger.warn("analyze.error", { requestId, durationMs, error: "Missing resume file" });
         return NextResponse.json(
           { ok: false, error: "Missing resume file" },
           { status: 400 }
@@ -46,39 +52,96 @@ export async function POST(req: NextRequest) {
       meta = parsed.meta;
     }
 
-    const system = `You are an expert technical recruiter and resume optimizer who knows ATS parsing behavior across major systems (Workday, Greenhouse, Lever, iCIMS, Taleo). You will:
+    const system = `You are an expert technical recruiter and resume optimizer who knows ATS parsing behavior across major systems (Workday, Greenhouse, Lever, iCIMS, Taleo).
+    Return ONLY JSON per the provided schema. Be concise and avoid repetition while remaining actionable.
+    Tasks:
     1) Score resume vs job (if job provided) across: keyword match, seniority fit, core skills, domain experience, location, education, and resume clarity. 0-100.
     2) Extract missing but critical keywords from the job and suggest precise resume edits.
     3) Suggest 3-5 quantified bullet rewrites using strong impact verbs tailored to the target role.
-    4) Provide an ATS-readability audit (sections, formatting, parse risks). Keep it concise and actionable.
+    4) Provide an ATS-readability audit (sections, formatting, parse risks).
     5) Provide a short cover letter scaffold (5-7 sentences) that mirrors keywords without fluff.
-    Return JSON with keys: score, highlights[], missingKeywords[], rewriteBullets[], atsAudit, coverLetterTemplate, and if job missing, generalGuidance.`;
+    6) If job is missing, include generalGuidance suitable across roles.`;
 
     const user = JSON.stringify({ resume: resumeText, job: jobText || null, meta: meta || {} });
 
-    const completion = await client.chat.completions.create({
+    // Responses API with structured output and conservative decoding to control cost
+    const jsonSchema = {
+      name: "Analysis",
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          score: { type: "number", minimum: 0, maximum: 100 },
+          highlights: {
+            type: "array",
+            items: { type: "string" },
+          },
+          missingKeywords: {
+            type: "array",
+            items: { type: "string" },
+          },
+          rewriteBullets: {
+            type: "array",
+            items: { type: "string" },
+          },
+          atsAudit: { type: "string" },
+          coverLetterTemplate: { type: "string" },
+          generalGuidance: { type: "string" },
+          message: { type: "string" },
+        },
+        required: [
+          "score",
+          "highlights",
+          "missingKeywords",
+          "rewriteBullets",
+          "atsAudit",
+          "coverLetterTemplate",
+          "generalGuidance",
+          "message",
+        ],
+      },
+      strict: true,
+    } as const;
+
+    const ai = new AIManager(process.env.OPENAI_API_KEY);
+    const data = await ai.createTextJsonResponse({
+      system,
+      user,
+      schema: jsonSchema,
       model: "gpt-5-nano",
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
       temperature: 1,
+      maxOutputTokens: 5000,
+      requestId,
+      metadata: { endpoint: "analyze" },
     });
-
-    // Try to parse model output as JSON. If not, wrap it.
-    const raw = completion.choices?.[0]?.message?.content ?? "{}";
-    let data: unknown;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      data = { message: raw };
-    }
-
-    return NextResponse.json({ ok: true, data });
+    const durationMs = Date.now() - startedAt;
+    const filename = meta?.filename;
+    const wordCount = meta?.wordCount;
+    const jobTextLength = jobText.length;
+    const resumeChars = resumeText.length;
+    logger.info("analyze.finish", {
+      requestId,
+      endpoint: "/api/analyze",
+      durationMs,
+      ok: true,
+      filename,
+      wordCount,
+      jobTextLength,
+      resumeChars
+    });
+    return NextResponse.json(
+      { ok: true, requestId, data },
+      { headers: { "x-request-id": requestId } }
+    );
   } catch (error: unknown) {
-    console.error("/api/analyze error", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    const message = error instanceof Error ? error.message : String(error);
+    const durationMs = Date.now() - startedAt;
+    logger.error("analyze.error", { requestId, endpoint: "/api/analyze", durationMs, error: message });
+    const responseMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      { ok: false, requestId, error: responseMessage },
+      { status: 400, headers: { "x-request-id": requestId } }
+    );
   }
 }
 
