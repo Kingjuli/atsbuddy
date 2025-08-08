@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type Metric = {
   timestamp: number;
@@ -56,7 +57,14 @@ export default function MetricsPage() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Metrics</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">Metrics</h1>
+          <div className="text-sm">
+            <Link className="underline" href="/logs">Logs</Link>
+            <span className="px-2 text-foreground/40">·</span>
+            <Link className="underline" href="/admin">Admin</Link>
+          </div>
+        </div>
         <button
           onClick={async () => {
             await fetch("/api/auth/logout", { method: "POST" });
