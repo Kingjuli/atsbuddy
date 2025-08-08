@@ -31,6 +31,7 @@ export const config = {
     "/logs/:path*",
     "/api/logs",
     "/admin",
+    "/admin/:path*",
   ],
 };
 

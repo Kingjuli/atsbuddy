@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMetrics, getTotals } from "@/lib/metrics";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
 
-export const runtime = "nodejs";
-
 export async function GET(req: NextRequest) {
   // Accept either cookie token or initial password via Authorization
   const token = req.cookies.get(AUTH_COOKIE_NAME)?.value;

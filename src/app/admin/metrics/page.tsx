@@ -1,7 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 type Metric = {
   timestamp: number;
@@ -24,7 +22,6 @@ type ApiResponse = {
 };
 
 export default function MetricsPage() {
-  const router = useRouter();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -46,7 +43,6 @@ export default function MetricsPage() {
   }
 
   useEffect(() => {
-    // Try loading on mount using cookie if present
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -55,26 +51,11 @@ export default function MetricsPage() {
   const totalReq = data?.totals.totalRequests ?? 0;
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
+    <div className="max-w-5xl mx-auto px-6 py-8">
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Metrics</h1>
-          <div className="text-sm">
-            <Link className="underline" href="/logs">Logs</Link>
-            <span className="px-2 text-foreground/40">·</span>
-            <Link className="underline" href="/admin">Admin</Link>
-          </div>
-        </div>
-        <button
-          onClick={async () => {
-            await fetch("/api/auth/logout", { method: "POST" });
-            setData(null);
-            setErr(null);
-            router.replace("/login?callback=/metrics");
-          }}
-          className="px-3 py-2 rounded border border-foreground/20 text-sm"
-        >
-          Logout
+        <h1 className="text-2xl font-semibold">Metrics</h1>
+        <button onClick={load} disabled={loading} className="px-3 py-2 rounded border border-foreground/20 text-sm">
+          {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
       {err && <div className="text-red-600 text-sm mb-3">{err}</div>}
@@ -86,40 +67,42 @@ export default function MetricsPage() {
             <Stat label="Input tokens" value={String(data.totals.totalInput)} />
             <Stat label="Output tokens" value={String(data.totals.totalOutput)} />
           </div>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-left border-b border-foreground/10">
-                <th className="py-2">Time</th>
-                <th>Endpoint</th>
-                <th>Model</th>
-                <th>Tier</th>
-                <th>In</th>
-                <th>Cached</th>
-                <th>Out</th>
-                <th>Total</th>
-                <th>Latency</th>
-                <th>Cost</th>
-                <th>ReqId</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.metrics.map((m, i) => (
-                <tr key={i} className="border-b border-foreground/10">
-                  <td className="py-2">{new Date(m.timestamp).toLocaleString()}</td>
-                  <td>{m.endpoint || "-"}</td>
-                  <td>{m.model}</td>
-                  <td>{m.serviceTier || "-"}</td>
-                  <td>{m.inputTokens ?? 0}</td>
-                  <td>{m.cachedInputTokens ?? 0}</td>
-                  <td>{m.outputTokens ?? 0}</td>
-                  <td>{m.totalTokens ?? 0}</td>
-                  <td>{(m.latencyMs ?? 0)}ms</td>
-                  <td>${(m.costUSD ?? 0).toFixed(6)}</td>
-                  <td className="truncate max-w-[140px]" title={m.requestId}>{m.requestId}</td>
+          <div className="rounded border border-foreground/10 overflow-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b border-foreground/10">
+                  <th className="py-2 px-2">Time</th>
+                  <th className="px-2">Endpoint</th>
+                  <th className="px-2">Model</th>
+                  <th className="px-2">Tier</th>
+                  <th className="px-2">In</th>
+                  <th className="px-2">Cached</th>
+                  <th className="px-2">Out</th>
+                  <th className="px-2">Total</th>
+                  <th className="px-2">Latency</th>
+                  <th className="px-2">Cost</th>
+                  <th className="px-2">ReqId</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.metrics.map((m, i) => (
+                  <tr key={i} className="border-b border-foreground/10">
+                    <td className="py-2 px-2 whitespace-nowrap">{new Date(m.timestamp).toLocaleString()}</td>
+                    <td className="px-2">{m.endpoint || "-"}</td>
+                    <td className="px-2">{m.model}</td>
+                    <td className="px-2">{m.serviceTier || "-"}</td>
+                    <td className="px-2">{m.inputTokens ?? 0}</td>
+                    <td className="px-2">{m.cachedInputTokens ?? 0}</td>
+                    <td className="px-2">{m.outputTokens ?? 0}</td>
+                    <td className="px-2">{m.totalTokens ?? 0}</td>
+                    <td className="px-2">{(m.latencyMs ?? 0)}ms</td>
+                    <td className="px-2">${(m.costUSD ?? 0).toFixed(6)}</td>
+                    <td className="px-2 truncate max-w-[140px]" title={m.requestId}>{m.requestId}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -63,7 +63,12 @@ export async function verifyAuthToken(token: string | undefined | null): Promise
   if (parts.length !== 2) return false;
   const [payloadB64, sig] = parts;
   // verify signature
-  const expected = await hmacSHA256(payloadB64, getSecret());
+  let expected: string;
+  try {
+    expected = await hmacSHA256(payloadB64, getSecret());
+  } catch {
+    return false;
+  }
   if (sig !== expected) return false;
   // verify expiry
   try {

@@ -10,7 +10,6 @@ type LogEntry = {
 };
 
 export default function LogsPage() {
-  const [pwd, setPwd] = useState("");
   const [requestId, setRequestId] = useState("");
   const [level, setLevel] = useState<string>("");
   const [entries, setEntries] = useState<LogEntry[]>([]);
@@ -27,9 +26,7 @@ export default function LogsPage() {
       if (requestId.trim()) params.set("requestId", requestId.trim());
       if (level) params.append("level", level);
       params.set("limit", "300");
-      const res = await fetch(`/api/logs?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${pwd}` },
-      });
+      const res = await fetch(`/api/logs?${params.toString()}`);
       const json = (await res.json()) as { ok: boolean; entries?: LogEntry[]; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error || "Failed");
       setEntries(json.entries || []);
@@ -54,16 +51,15 @@ export default function LogsPage() {
   }, [entries, mode]);
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-10">
-      <h1 className="text-2xl font-semibold mb-4">Logs</h1>
+    <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Logs</h1>
+        <button onClick={load} className="px-3 py-2 rounded border border-foreground/20 text-sm" disabled={loading}>
+          {loading ? "Loading…" : "Load"}
+        </button>
+      </div>
+      {err && <div className="text-red-600 text-sm mb-3">{err}</div>}
       <div className="flex flex-wrap gap-2 mb-4 items-center">
-        <input
-          value={pwd}
-          onChange={(e) => setPwd(e.target.value)}
-          placeholder="Password"
-          type="password"
-          className="border rounded px-3 py-2 text-sm"
-        />
         <select value={mode} onChange={(e) => setMode(e.target.value as any)} className="border rounded px-2 py-2 text-sm">
           <option value="requests">Requests</option>
           <option value="unattributed">Unattributed</option>
@@ -81,11 +77,7 @@ export default function LogsPage() {
           <option value="error">error</option>
           <option value="debug">debug</option>
         </select>
-        <button onClick={load} className="px-3 py-2 rounded bg-foreground text-background text-sm" disabled={loading}>
-          {loading ? "Loading…" : "Load"}
-        </button>
       </div>
-      {err && <div className="text-red-600 text-sm mb-3">{err}</div>}
       <div className="space-y-6">
         {Object.entries(grouped).map(([groupId, items]) => (
           <div key={groupId} className="border rounded p-3">
@@ -113,9 +105,7 @@ export default function LogsPage() {
                     <td className="text-xs text-foreground/70">
                       <code className="break-all">
                         {JSON.stringify(
-                          Object.fromEntries(
-                            Object.entries(e).filter(([k]) => !["ts", "level", "msg"].includes(k))
-                          ),
+                          Object.fromEntries(Object.entries(e).filter(([k]) => !["ts", "level", "msg"].includes(k))),
                           null,
                           0
                         )}
@@ -131,6 +121,5 @@ export default function LogsPage() {
     </div>
   );
 }
-
 
 

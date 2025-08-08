@@ -1,13 +1,15 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
+  const router = useRouter();
   return (
     <div className="max-w-3xl mx-auto px-6 py-10">
       <h1 className="text-2xl font-semibold mb-4">Admin</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card title="Metrics" href="/metrics" desc="View request metrics, token counts, and spend." />
-        <Card title="Logs" href="/logs" desc="Inspect application logs with rotation." />
+        <Card title="Metrics" href="/admin/metrics" desc="View request metrics, token counts, and spend." />
+        <Card title="Logs" href="/admin/logs" desc="Inspect application logs with rotation." />
       </div>
     </div>
   );
