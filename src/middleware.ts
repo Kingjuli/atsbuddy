@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
 
-const PROTECTED_PATHS = ["/metrics", "/api/metrics", "/logs", "/api/logs", "/admin"];
+const PROTECTED_PATHS = ["/api/metrics", "/api/logs", "/admin"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -24,11 +24,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/metrics",
-    "/metrics/:path*",
     "/api/metrics",
-    "/logs",
-    "/logs/:path*",
     "/api/logs",
     "/admin",
     "/admin/:path*",

@@ -19,8 +19,12 @@ export default function LoginPage() {
       const json = (await res.json()) as { ok: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error || "Login failed");
       const url = new URL(window.location.href);
-      const cb = url.searchParams.get("callback") || "/metrics";
-      window.location.href = cb;
+      const raw = url.searchParams.get("callback");
+      let cb = raw || "/admin";
+      // Map legacy paths to new admin routes
+      if (cb === "/metrics" || cb.startsWith("/metrics/")) cb = "/admin/metrics";
+      if (cb === "/logs" || cb.startsWith("/logs/")) cb = "/admin/logs";
+      window.location.replace(cb);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Login failed");
     } finally {
