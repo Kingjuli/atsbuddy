@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Metric = {
   timestamp: number;
@@ -22,6 +23,7 @@ type ApiResponse = {
 };
 
 export default function MetricsPage() {
+  const router = useRouter();
   const [pwd, setPwd] = useState("");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -73,6 +75,8 @@ export default function MetricsPage() {
             await fetch("/api/auth/logout", { method: "POST" });
             setData(null);
             setErr(null);
+            setPwd("");
+            router.replace("/login?callback=/metrics");
           }}
           className="px-3 py-2 rounded border border-foreground/20 text-sm"
         >
