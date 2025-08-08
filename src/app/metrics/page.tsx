@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Metric = {
@@ -24,7 +24,6 @@ type ApiResponse = {
 
 export default function MetricsPage() {
   const router = useRouter();
-  const [pwd, setPwd] = useState("");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,9 +32,7 @@ export default function MetricsPage() {
     setLoading(true);
     setErr(null);
     try {
-      // Metrics API now uses cookie auth; header only used for first-time password submit
-      const headers = pwd ? { Authorization: `Bearer ${pwd}` } : undefined as any;
-      const res = await fetch("/api/metrics", { headers });
+      const res = await fetch("/api/metrics");
       const json = (await res.json()) as ApiResponse & { error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error || "Failed to fetch");
       setData(json);
@@ -58,24 +55,13 @@ export default function MetricsPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
-      <h1 className="text-2xl font-semibold mb-4">Metrics</h1>
-      <div className="flex gap-2 mb-4">
-        <input
-          value={pwd}
-          onChange={(e) => setPwd(e.target.value)}
-          placeholder="Password"
-          type="password"
-          className="border rounded px-3 py-2 text-sm"
-        />
-        <button onClick={load} className="px-3 py-2 rounded bg-foreground text-background text-sm" disabled={loading}>
-          {loading ? "Loading…" : "Load"}
-        </button>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Metrics</h1>
         <button
           onClick={async () => {
             await fetch("/api/auth/logout", { method: "POST" });
             setData(null);
             setErr(null);
-            setPwd("");
             router.replace("/login?callback=/metrics");
           }}
           className="px-3 py-2 rounded border border-foreground/20 text-sm"
