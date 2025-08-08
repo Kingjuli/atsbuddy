@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
       system,
       user,
       schema: jsonSchema,
-      model: "gpt-5-nano",
+      // model picked from env in AIManager
       temperature: 1,
       maxOutputTokens: 15000,
       requestId,

@@ -31,16 +31,24 @@ export class AIManager {
       system,
       user,
       schema,
-      model = "gpt-5-nano",
+      model = process.env.OPENAI_MODEL || "gpt-5-nano",
       temperature = 1,
       maxOutputTokens = 900,
       requestId,
       metadata,
     } = params;
 
+    const envTier = (process.env.OPENAI_SERVICE_TIER || "").toLowerCase();
+    const defaultTier: "flex" | "auto" | "priority" =
+      envTier === "auto" || envTier === "standard"
+        ? "auto"
+        : envTier === "priority"
+        ? "priority"
+        : "flex";
+
     const createParams: any = {
       model,
-      service_tier: "flex",
+      service_tier: defaultTier,
       input: [
         {
           role: "system",
@@ -80,7 +88,8 @@ export class AIManager {
       schema: schema.name,
     });
 
-    const response = await this.client.responses.create(createParams);
+    // Call with retry policy for 429 Resource Unavailable
+    const { response, usedTier } = await callWithRetries(this.client, createParams, requestId, defaultTier);
 
     // Prefer native JSON parts when using json_schema formatting
     const anyResp: any = response as any;
@@ -94,7 +103,7 @@ export class AIManager {
     const totalTokens: number | null = usage.total_tokens ?? usage.totalTokens ?? (inputTokens != null && outputTokens != null ? inputTokens + outputTokens : null);
     const costUSD = estimateCostUSD({
       model,
-      serviceTier: createParams.service_tier,
+      serviceTier: usedTier,
       inputTokens: inputTokens || 0,
       cachedInputTokens: cachedInputTokens || 0,
       outputTokens: outputTokens || 0,
@@ -104,7 +113,7 @@ export class AIManager {
       requestId,
       model: anyResp.model || anyResp.response?.model || model,
       responseId: anyResp.id || anyResp.response?.id || null,
-      serviceTier: createParams.service_tier,
+      serviceTier: usedTier,
       latencyMs,
       inputTokens,
       cachedInputTokens,
@@ -116,12 +125,12 @@ export class AIManager {
       const content = item?.content || [];
       for (const part of content) {
         if (part?.type === "output_json" && part?.json) {
-          recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: createParams.service_tier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+          recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
           logger.info("AI response", { ...baseLog, hasOutputJson: true, textLength: 0 });
           return part.json;
         }
         if (part && typeof part.json === "object" && part.json) {
-          recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: createParams.service_tier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+          recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
           logger.info("AI response", { ...baseLog, hasOutputJson: true, textLength: 0 });
           return part.json;
         }
@@ -147,22 +156,78 @@ export class AIManager {
     // Try direct parse
     try {
       const parsed = JSON.parse(safeText);
-      recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: createParams.service_tier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+      recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
       logger.info("AI response", { ...baseLog, hasOutputJson: false, textLength: safeText.length });
       return parsed;
     } catch {}
     // Try to extract first JSON object/array substring
     const extracted = extractJsonFromText(safeText);
     if (extracted) {
-      recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: createParams.service_tier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+      recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
       logger.info("AI response", { ...baseLog, hasOutputJson: false, textLength: safeText.length });
       return extracted;
     }
     // Final fallback: return as message
-    recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: createParams.service_tier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+    recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
     logger.info("AI response", { ...baseLog, hasOutputJson: false, textLength: safeText.length });
     return { message: String(safeText) };
   }
+}
+
+async function callWithRetries(
+  client: OpenAI,
+  baseParams: any,
+  requestId?: string,
+  preferredTier: "flex" | "auto" | "priority" = "flex",
+): Promise<{ response: any; usedTier: string }> {
+  const BASE_DELAY = 500;
+  const MAX_FLEX_RETRIES = 3;
+  const MAX_AUTO_RETRIES = 2;
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const jitter = (ms: number) => ms + Math.floor(Math.random() * 250);
+  const isResourceUnavailable = (err: any): boolean => {
+    const status = (err && (err.status || err.statusCode)) ?? 0;
+    const msg = String(err?.message || "").toLowerCase();
+    return status === 429 || msg.includes("resource unavailable") || msg.includes("capacity");
+  };
+
+  // First pass: try preferred tier
+  for (let attempt = 0; attempt < MAX_FLEX_RETRIES; attempt++) {
+    try {
+      const params = { ...baseParams, service_tier: preferredTier };
+      const response = await client.responses.create(params);
+      return { response, usedTier: preferredTier };
+    } catch (err: any) {
+      if (isResourceUnavailable(err)) {
+        const delay = jitter(BASE_DELAY * Math.pow(2, attempt));
+        logger.warn(`AI retry (${preferredTier})`, { requestId, attempt: attempt + 1, delayMs: delay });
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  // Escalate to the other tier (auto if preferred was flex/priority, otherwise flex)
+  for (let attempt = 0; attempt < MAX_AUTO_RETRIES; attempt++) {
+    try {
+      const fallbackTier = preferredTier === "auto" ? "flex" : "auto";
+      const params = { ...baseParams, service_tier: fallbackTier };
+      const response = await client.responses.create(params);
+      return { response, usedTier: fallbackTier };
+    } catch (err: any) {
+      if (isResourceUnavailable(err)) {
+        const delay = jitter(BASE_DELAY * Math.pow(2, attempt));
+        logger.warn("AI retry (fallback)", { requestId, attempt: attempt + 1, delayMs: delay });
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error("Resource unavailable after retries");
 }
 
 function estimateCostUSD(params: { model: string; serviceTier?: string; inputTokens: number; cachedInputTokens: number; outputTokens: number }): number {
@@ -174,10 +239,12 @@ function estimateCostUSD(params: { model: string; serviceTier?: string; inputTok
 
 function pricingLookup(model: string, tier: string): { input: number; cached: number; output: number } {
   const m = model.toLowerCase();
-  const t = tier.toLowerCase();
+  let t = tier.toLowerCase();
+  if (t === "auto") t = "standard"; // map auto to standard pricing
   let input = 0.05, cached = 0.005, output = 0.4; // defaults to standard nano
   if (m.includes("gpt-5-nano")) {
     if (t === "standard") { input = 0.05; cached = 0.005; output = 0.4; }
+    else if (t === "priority") { input = 0.05 * 2; cached = 0.005 * 2; output = 0.4 * 2; } // no explicit nano priority table, approximate
     else { input = 0.025; cached = 0.0025; output = 0.2; } // flex/batch
   } else if (m.includes("gpt-5-mini")) {
     if (t === "priority") { input = 0.45; cached = 0.05; output = 3.6; }
