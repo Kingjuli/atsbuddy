@@ -39,7 +39,7 @@ export class RotatingFileLogger {
   private operationChain: Promise<void> = Promise.resolve();
 
   constructor(options?: LoggerOptions) {
-    const logDir = process.env.LOG_DIR || path.join(process.cwd(), "logs");
+    const logDir = process.env.LOG_DIR || (process.env.VERCEL ? "/tmp/logs" : path.join(process.cwd(), "logs"));
     const fileName = process.env.LOG_FILE || "app.log";
     const resolvedPath = options?.filePath || path.join(logDir, fileName);
 

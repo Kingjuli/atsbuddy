@@ -13,7 +13,22 @@ const AnalyzeSchema = z.object({
     .optional(),
 });
 
-// Lazy-initialize the OpenAI client inside the handler to avoid build-time env access
+// Force Node.js runtime and dynamic evaluation (uses node:crypto, file parsing)
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Allow preflight in case a browser issues OPTIONS before POST
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Origin": "*",
+      "Vary": "Origin",
+    },
+  });
+}
 
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID();
