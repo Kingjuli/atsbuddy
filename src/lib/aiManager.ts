@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { ResponseCreateParams } from "openai/resources/responses/responses";
 import { logger } from "@/lib/logger";
 import { recordMetric } from "@/lib/metrics";
 
@@ -7,6 +8,12 @@ type JsonSchemaShape = {
   schema: Record<string, unknown>;
   strict?: boolean;
 };
+
+interface AIResourceError {
+  status?: number;
+  statusCode?: number;
+  message?: string;
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -220,7 +227,7 @@ async function callWithRetries(
   for (let attempt = 0; attempt < MAX_FLEX_RETRIES; attempt++) {
     try {
       const params: Record<string, unknown> = { ...baseParams, service_tier: preferredTier };
-      const response = await client.responses.create(params as OpenAIResponseCreateParams);
+      const response = await client.responses.create(params as ResponseCreateParams);
       return { response, usedTier: preferredTier };
     } catch (err: unknown) {
       if (isResourceUnavailable(err)) {
@@ -238,7 +245,7 @@ async function callWithRetries(
     try {
       const fallbackTier = preferredTier === "auto" ? "flex" : "auto";
       const params: Record<string, unknown> = { ...baseParams, service_tier: fallbackTier };
-      const response = await client.responses.create(params as ResponsesCreateParams);
+      const response = await client.responses.create(params as ResponseCreateParams);
       return { response, usedTier: fallbackTier };
     } catch (err: unknown) {
       if (isResourceUnavailable(err)) {
