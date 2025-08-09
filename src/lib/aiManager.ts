@@ -49,6 +49,18 @@ export class AIManager {
       metadata,
     } = params;
 
+    // Env-controlled reasoning effort and verbosity (low | medium | high)
+    const reasoningEnv = String(process.env.OPENAI_REASONING_EFFORT || "").toLowerCase();
+    const reasoningEffort: "low" | "medium" | "high" | undefined =
+      reasoningEnv === "low" || reasoningEnv === "medium" || reasoningEnv === "high"
+        ? (reasoningEnv as "low" | "medium" | "high")
+        : undefined;
+    const verbosityEnv = String(process.env.OPENAI_VERBOSITY || "").toLowerCase();
+    const verbosity: "low" | "medium" | "high" | undefined =
+      verbosityEnv === "low" || verbosityEnv === "medium" || verbosityEnv === "high"
+        ? (verbosityEnv as "low" | "medium" | "high")
+        : undefined;
+
     const envTier = (process.env.OPENAI_SERVICE_TIER || "").toLowerCase();
     const defaultTier: "flex" | "auto" | "priority" =
       envTier === "auto" || envTier === "standard"
@@ -75,6 +87,7 @@ export class AIManager {
         },
       ],
       text: {
+        ...(verbosity ? { verbosity } : {}),
         format: {
           type: "json_schema",
           name: schema.name,
@@ -87,6 +100,10 @@ export class AIManager {
       metadata: { ...(metadata || {}), requestId, project: "atsbuddy" },
     };
 
+    if (reasoningEffort) {
+      (createParams as Record<string, unknown>).reasoning = { effort: reasoningEffort } as const;
+    }
+
     const startedAt = Date.now();
     logger.info("AI request", {
       requestId,
@@ -94,6 +111,8 @@ export class AIManager {
       temperature,
       serviceTier: createParams.service_tier,
       maxOutputTokens,
+      reasoningEffort: reasoningEffort || null,
+      verbosity: verbosity || null,
       systemChars: system.length,
       userChars: user.length,
       schema: schema.name,
