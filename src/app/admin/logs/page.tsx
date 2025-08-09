@@ -143,7 +143,7 @@ export default function LogsPage() {
       </div>
       {err && <div className="text-red-600 text-sm mb-3">{err}</div>}
       <div className="flex flex-wrap gap-2 mb-4 items-center">
-        <select value={mode} onChange={(e) => setMode(e.target.value as any)} className="border rounded px-2 py-2 text-sm">
+        <select value={mode} onChange={(e) => setMode(e.target.value as "requests" | "unattributed")} className="border rounded px-2 py-2 text-sm">
           <option value="requests">Requests</option>
           <option value="unattributed">Unattributed</option>
         </select>

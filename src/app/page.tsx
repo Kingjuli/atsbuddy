@@ -189,29 +189,29 @@ export default function Home() {
                 </div>
               )}
 
-              {result.data?.atsAudit && (
+              {typeof result.data?.atsAudit !== "undefined" && (
                 <div className="mb-4">
                   <h4 className="text-sm font-medium mb-1">ATS audit</h4>
                   <pre className="text-sm whitespace-pre-wrap bg-foreground/[0.04] rounded p-2">
-                    {toText((result.data as any).atsAudit)}
+                    {toText(result.data?.atsAudit)}
                   </pre>
                 </div>
               )}
 
-              {result.data?.coverLetterTemplate && (
+              {typeof result.data?.coverLetterTemplate !== "undefined" && (
                 <div className="mb-4">
                   <h4 className="text-sm font-medium mb-1">Cover letter scaffold</h4>
                   <pre className="text-sm whitespace-pre-wrap bg-foreground/[0.04] rounded p-2">
-                    {toText((result.data as any).coverLetterTemplate)}
+                    {toText(result.data?.coverLetterTemplate)}
                   </pre>
                 </div>
               )}
 
-              {result.data?.generalGuidance && (
+              {typeof result.data?.generalGuidance !== "undefined" && (
                 <div className="mb-2">
                   <h4 className="text-sm font-medium mb-1">General guidance</h4>
                   <pre className="text-sm whitespace-pre-wrap bg-foreground/[0.04] rounded p-2">
-                    {toText((result.data as any).generalGuidance)}
+                    {toText(result.data?.generalGuidance)}
                   </pre>
                 </div>
               )}
