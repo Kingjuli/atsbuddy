@@ -238,7 +238,7 @@ async function callWithRetries(
     try {
       const fallbackTier = preferredTier === "auto" ? "flex" : "auto";
       const params: Record<string, unknown> = { ...baseParams, service_tier: fallbackTier };
-      const response = await client.responses.create(params as Parameters<typeof client.responses.create>[0]);
+      const response = await client.responses.create(params as ResponsesCreateParams);
       return { response, usedTier: fallbackTier };
     } catch (err: unknown) {
       if (isResourceUnavailable(err)) {
