@@ -1,6 +1,6 @@
 ### ATSBuddy — AI resume + JD analyzer with built‑in metrics/logs
 
-Upload a resume (PDF/DOCX/TXT), optionally paste a job description, and get a concise ATS‑focused analysis: score, missing keywords, bullet rewrites, ATS audit, and a cover letter scaffold. Admin pages provide token/cost metrics and rotating file logs out of the box.
+Upload a resume (PDF/DOCX/TXT), optionally paste a job description, and get a concise ATS‑focused analysis: score, missing keywords, bullet rewrites, ATS audit, and a cover letter scaffold. Admin pages provide token/cost metrics and rotating file logs.
 
 - Features: resume parsing (PDF/DOCX/TXT), JD match scoring, missing keywords, bullet rewrites, ATS audit, cover letter scaffold
 - Admin: `/admin/metrics` for token/cost, `/admin/logs` with rotation and filters
@@ -8,15 +8,15 @@ Upload a resume (PDF/DOCX/TXT), optionally paste a job description, and get a co
 
 If this project helps you, please consider starring it — it really helps!
 
-## Quick start
+## Quick start (2 mins)
 
 Prereqs: Node 20+, npm
 
-1) Copy env and fill required values
+1) Copy env and set two values
 
 ```bash
 cp env.example .env.local
-# Set OPENAI_API_KEY and METRICS_PASSWORD at minimum
+# Required: OPENAI_API_KEY and METRICS_PASSWORD
 ```
 
 2) Install and run
@@ -30,20 +30,21 @@ App runs at `http://localhost:3005` (port set in `package.json`).
 
 3) Admin access (metrics/logs)
 
-- Visit `http://localhost:3005/login`
-- Sign in with the password you set in `METRICS_PASSWORD`
-- You’ll be redirected to `/admin` (Metrics + Logs)
+- Go to `http://localhost:3005/login`
+- Enter the password from `METRICS_PASSWORD`
+- You’ll land on `/admin` (Metrics + Logs)
 
 ## Environment variables
 Create `.env.local` from `env.example`.
 
-- `OPENAI_API_KEY` (required): your OpenAI API key
-- `OPENAI_MODEL` (optional): default `gpt-5-nano`
-- `OPENAI_SERVICE_TIER` (optional): `flex` | `auto` | `priority` (defaults to `flex`)
-- `METRICS_PASSWORD` (required): password for `/login` and protected APIs
-- `METRICS_AUTH_SECRET` (optional): HMAC secret for cookie auth. If omitted, `METRICS_PASSWORD` is used
-- `LOG_DIR`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_MAX_FILES`, `LOG_LEVEL` (optional): control rotating file logs
-- `METRICS_DIR` (optional): directory to persist JSON metrics (`data/metrics.json` by default)
+- `OPENAI_API_KEY` (required)
+- `METRICS_PASSWORD` (required)
+
+Optional (power users):
+- `OPENAI_MODEL` (default `gpt-5-nano`)
+- `OPENAI_SERVICE_TIER` (`flex` | `auto` | `priority`, default `flex`)
+- Logging: `LOG_DIR`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_MAX_FILES`, `LOG_LEVEL`
+- Metrics storage: `METRICS_DIR`
 
 ## Usage screenshots / demo
 
@@ -59,9 +60,11 @@ Demo video (replace with your link): `[Watch 2‑minute demo]`
 
 ## Deploy
 
-- Vercel (recommended): import the repo and add the env vars above
+- One‑click deploy to Vercel:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/import?s=https%3A%2F%2Fgithub.com%2F&hasTrialAvailable=1)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Kingjuli/atsbuddy&project-name=atsbuddy&repository-name=atsbuddy&env=OPENAI_API_KEY,METRICS_PASSWORD&envDescription=Set%20your%20OpenAI%20API%20key%20and%20an%20admin%20password%20for%20metrics%2Flogs.&envLink=https://github.com/Kingjuli/atsbuddy/blob/main/env.example)
+
+- After deploy, visit `/login` and use `METRICS_PASSWORD` for admin.
 - Any Node host that supports Next.js 15+ works
 
 Production build:

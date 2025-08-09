@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { ResponseCreateParams } from "openai/resources/responses/responses";
 import { logger } from "@/lib/logger";
 import { recordMetric } from "@/lib/metrics";
 
@@ -7,6 +8,16 @@ type JsonSchemaShape = {
   schema: Record<string, unknown>;
   strict?: boolean;
 };
+
+interface AIResourceError {
+  status?: number;
+  statusCode?: number;
+  message?: string;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 export class AIManager {
   private client: OpenAI;
@@ -46,7 +57,7 @@ export class AIManager {
         ? "priority"
         : "flex";
 
-    const createParams: any = {
+    const createParams: Record<string, unknown> = {
       model,
       service_tier: defaultTier,
       input: [
@@ -92,15 +103,29 @@ export class AIManager {
     const { response, usedTier } = await callWithRetries(this.client, createParams, requestId, defaultTier);
 
     // Prefer native JSON parts when using json_schema formatting
-    const anyResp: any = response as any;
-    const outputs: any[] = anyResp.output || anyResp.response?.output || [];
+    const resp = response as unknown;
+    const respObj = isObject(resp) ? resp : {};
+    const nestedResponse = isObject(respObj.response) ? (respObj.response as Record<string, unknown>) : undefined;
+    const outputs: unknown[] = Array.isArray(respObj.output)
+      ? (respObj.output as unknown[])
+      : Array.isArray(nestedResponse?.output)
+      ? (nestedResponse?.output as unknown[])
+      : [];
 
     // Token usage and cost
-    const usage = anyResp.usage || anyResp.response?.usage || {};
-    const inputTokens: number | null = usage.input_tokens ?? usage.inputTokens ?? null;
-    const cachedInputTokens: number | null = usage.cache_creation_input_tokens ?? usage.cached_input_tokens ?? usage.input_cached_tokens ?? null;
-    const outputTokens: number | null = usage.output_tokens ?? usage.outputTokens ?? null;
-    const totalTokens: number | null = usage.total_tokens ?? usage.totalTokens ?? (inputTokens != null && outputTokens != null ? inputTokens + outputTokens : null);
+    const usageRaw: unknown = (respObj as { usage?: unknown }).usage ?? (nestedResponse as { usage?: unknown })?.usage;
+    const usage = isObject(usageRaw) ? usageRaw : {};
+    const inputTokens: number | null = (usage.input_tokens as number | undefined) ?? (usage.inputTokens as number | undefined) ?? null;
+    const cachedInputTokens: number | null =
+      (usage.cache_creation_input_tokens as number | undefined) ??
+      (usage.cached_input_tokens as number | undefined) ??
+      (usage.input_cached_tokens as number | undefined) ??
+      null;
+    const outputTokens: number | null = (usage.output_tokens as number | undefined) ?? (usage.outputTokens as number | undefined) ?? null;
+    const totalTokens: number | null =
+      (usage.total_tokens as number | undefined) ??
+      (usage.totalTokens as number | undefined) ??
+      (inputTokens != null && outputTokens != null ? inputTokens + outputTokens : null);
     const costUSD = estimateCostUSD({
       model,
       serviceTier: usedTier,
@@ -111,8 +136,8 @@ export class AIManager {
     const latencyMs = Date.now() - startedAt;
     const baseLog = {
       requestId,
-      model: anyResp.model || anyResp.response?.model || model,
-      responseId: anyResp.id || anyResp.response?.id || null,
+      model: (respObj.model as string | undefined) || (nestedResponse?.model as string | undefined) || model,
+      responseId: (respObj.id as string | undefined) || (nestedResponse?.id as string | undefined) || null,
       serviceTier: usedTier,
       latencyMs,
       inputTokens,
@@ -122,53 +147,58 @@ export class AIManager {
       costUSD,
     };
     for (const item of outputs) {
-      const content = item?.content || [];
+      const content = isObject(item) && Array.isArray((item as Record<string, unknown>).content)
+        ? ((item as Record<string, unknown>).content as unknown[])
+        : [];
       for (const part of content) {
-        if (part?.type === "output_json" && part?.json) {
-          recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+        if (isObject(part) && (part.type as string | undefined) === "output_json" && isObject(part.json)) {
+          recordMetric({ timestamp: Date.now(), endpoint: (typeof metadata?.endpoint === 'string' ? metadata.endpoint : undefined), requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
           logger.info("AI response", { ...baseLog, hasOutputJson: true, textLength: 0 });
-          return part.json;
+          return part.json as unknown;
         }
-        if (part && typeof part.json === "object" && part.json) {
-          recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+        if (isObject(part) && isObject(part.json)) {
+          recordMetric({ timestamp: Date.now(), endpoint: (typeof metadata?.endpoint === 'string' ? metadata.endpoint : undefined), requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
           logger.info("AI response", { ...baseLog, hasOutputJson: true, textLength: 0 });
-          return part.json;
+          return part.json as unknown;
         }
       }
     }
 
     // Fallback: aggregate text and parse
-    let textOut: string | undefined = anyResp.output_text;
+    let textOut: string | undefined = typeof (respObj as { output_text?: unknown }).output_text === 'string' ? (respObj as { output_text?: string }).output_text : undefined;
     if (!textOut && outputs.length) {
       const pieces: string[] = [];
       for (const item of outputs) {
-        const content = item?.content || [];
+        const content = isObject(item) && Array.isArray((item as Record<string, unknown>).content)
+          ? ((item as Record<string, unknown>).content as unknown[])
+          : [];
         for (const part of content) {
-          if (typeof part?.text === "string") pieces.push(part.text);
+          if (isObject(part) && typeof (part as Record<string, unknown>).text === "string") pieces.push((part as Record<string, unknown>).text as string);
         }
       }
       textOut = pieces.join("\n");
     }
-    if (!textOut && anyResp.content?.[0]?.text) {
-      textOut = anyResp.content[0].text;
+    const topContent = Array.isArray((respObj as { content?: unknown }).content) ? ((respObj as { content?: unknown[] }).content) : undefined;
+    if (!textOut && topContent && isObject(topContent[0]) && typeof (topContent[0] as Record<string, unknown>).text === 'string') {
+      textOut = (topContent[0] as Record<string, unknown>).text as string;
     }
     const safeText = textOut ?? "{}";
     // Try direct parse
     try {
       const parsed = JSON.parse(safeText);
-      recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+      recordMetric({ timestamp: Date.now(), endpoint: (typeof metadata?.endpoint === 'string' ? metadata.endpoint : undefined), requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
       logger.info("AI response", { ...baseLog, hasOutputJson: false, textLength: safeText.length });
       return parsed;
     } catch {}
     // Try to extract first JSON object/array substring
     const extracted = extractJsonFromText(safeText);
     if (extracted) {
-      recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+      recordMetric({ timestamp: Date.now(), endpoint: (typeof metadata?.endpoint === 'string' ? metadata.endpoint : undefined), requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
       logger.info("AI response", { ...baseLog, hasOutputJson: false, textLength: safeText.length });
       return extracted;
     }
     // Final fallback: return as message
-    recordMetric({ timestamp: Date.now(), endpoint: (metadata as any)?.endpoint as string | undefined, requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
+    recordMetric({ timestamp: Date.now(), endpoint: (typeof metadata?.endpoint === 'string' ? metadata.endpoint : undefined), requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
     logger.info("AI response", { ...baseLog, hasOutputJson: false, textLength: safeText.length });
     return { message: String(safeText) };
   }
@@ -176,29 +206,30 @@ export class AIManager {
 
 async function callWithRetries(
   client: OpenAI,
-  baseParams: any,
+  baseParams: Record<string, unknown>,
   requestId?: string,
   preferredTier: "flex" | "auto" | "priority" = "flex",
-): Promise<{ response: any; usedTier: string }> {
+): Promise<{ response: unknown; usedTier: string }> {
   const BASE_DELAY = 500;
   const MAX_FLEX_RETRIES = 3;
   const MAX_AUTO_RETRIES = 2;
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const jitter = (ms: number) => ms + Math.floor(Math.random() * 250);
-  const isResourceUnavailable = (err: any): boolean => {
-    const status = (err && (err.status || err.statusCode)) ?? 0;
-    const msg = String(err?.message || "").toLowerCase();
+  const isResourceUnavailable = (err: unknown): boolean => {
+    const anyErr = err as AIResourceError | undefined;
+    const status = (anyErr && (anyErr.status || anyErr.statusCode)) ?? 0;
+    const msg = String(anyErr?.message || "").toLowerCase();
     return status === 429 || msg.includes("resource unavailable") || msg.includes("capacity");
   };
 
   // First pass: try preferred tier
   for (let attempt = 0; attempt < MAX_FLEX_RETRIES; attempt++) {
     try {
-      const params = { ...baseParams, service_tier: preferredTier };
-      const response = await client.responses.create(params);
+      const params: Record<string, unknown> = { ...baseParams, service_tier: preferredTier };
+      const response = await client.responses.create(params as ResponseCreateParams);
       return { response, usedTier: preferredTier };
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isResourceUnavailable(err)) {
         const delay = jitter(BASE_DELAY * Math.pow(2, attempt));
         logger.warn(`AI retry (${preferredTier})`, { requestId, attempt: attempt + 1, delayMs: delay });
@@ -213,10 +244,10 @@ async function callWithRetries(
   for (let attempt = 0; attempt < MAX_AUTO_RETRIES; attempt++) {
     try {
       const fallbackTier = preferredTier === "auto" ? "flex" : "auto";
-      const params = { ...baseParams, service_tier: fallbackTier };
-      const response = await client.responses.create(params);
+      const params: Record<string, unknown> = { ...baseParams, service_tier: fallbackTier };
+      const response = await client.responses.create(params as ResponseCreateParams);
       return { response, usedTier: fallbackTier };
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isResourceUnavailable(err)) {
         const delay = jitter(BASE_DELAY * Math.pow(2, attempt));
         logger.warn("AI retry (fallback)", { requestId, attempt: attempt + 1, delayMs: delay });

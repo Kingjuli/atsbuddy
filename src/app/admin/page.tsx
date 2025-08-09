@@ -1,9 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 export default function AdminPage() {
-  const router = useRouter();
   return (
     <div className="max-w-3xl mx-auto px-6 py-10">
       <h1 className="text-2xl font-semibold mb-4">Admin</h1>
