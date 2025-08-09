@@ -60,9 +60,9 @@ Demo video (replace with your link): `[Watch 2‑minute demo]`
 
 ## Deploy
 
-- One‑click deploy to Vercel:
+- One‑click deploy to Vercel (imports your existing repo):
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Kingjuli/atsbuddy&project-name=atsbuddy&repository-name=atsbuddy&env=OPENAI_API_KEY,METRICS_PASSWORD&envDescription=Set%20your%20OpenAI%20API%20key%20and%20an%20admin%20password%20for%20metrics%2Flogs.&envLink=https://github.com/Kingjuli/atsbuddy/blob/main/env.example)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/import?repository-url=https://github.com/Kingjuli/atsbuddy&env=OPENAI_API_KEY,METRICS_PASSWORD&envDescription=Set%20your%20OpenAI%20API%20key%20and%20an%20admin%20password%20for%20metrics%2Flogs.&envLink=https://github.com/Kingjuli/atsbuddy/blob/main/env.example)
 
 - After deploy, visit `/login` and use `METRICS_PASSWORD` for admin.
 - Any Node host that supports Next.js 15+ works
