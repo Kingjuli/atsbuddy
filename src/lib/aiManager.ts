@@ -220,7 +220,7 @@ async function callWithRetries(
   for (let attempt = 0; attempt < MAX_FLEX_RETRIES; attempt++) {
     try {
       const params: Record<string, unknown> = { ...baseParams, service_tier: preferredTier };
-      const response = await client.responses.create(params as Parameters<typeof client.responses.create>[0]);
+      const response = await client.responses.create(params as OpenAIResponseCreateParams);
       return { response, usedTier: preferredTier };
     } catch (err: unknown) {
       if (isResourceUnavailable(err)) {
