@@ -20,10 +20,10 @@ export type MetricRecord = {
 const MAX_RECORDS = 500;
 const metricsBuffer: MetricRecord[] = [];
 
-// Simple JSON file persistence
+// Simple JSON file persistence (use /tmp on Vercel which is the only writable path)
 const DATA_DIR = process.env.METRICS_DIR
   ? path.resolve(process.env.METRICS_DIR)
-  : path.join(process.cwd(), "data");
+  : (process.env.VERCEL ? "/tmp/data" : path.join(process.cwd(), "data"));
 const METRICS_FILE = path.join(DATA_DIR, "metrics.json");
 let saveChain: Promise<void> = Promise.resolve();
 
