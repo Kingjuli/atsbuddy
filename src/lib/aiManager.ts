@@ -210,7 +210,7 @@ async function callWithRetries(
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const jitter = (ms: number) => ms + Math.floor(Math.random() * 250);
   const isResourceUnavailable = (err: unknown): boolean => {
-    const anyErr = err as { status?: number; statusCode?: number; message?: string } | undefined;
+    const anyErr = err as AIResourceError | undefined;
     const status = (anyErr && (anyErr.status || anyErr.statusCode)) ?? 0;
     const msg = String(anyErr?.message || "").toLowerCase();
     return status === 429 || msg.includes("resource unavailable") || msg.includes("capacity");
