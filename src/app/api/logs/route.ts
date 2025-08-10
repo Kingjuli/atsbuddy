@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { loadLogs } from "@/lib/logReader";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";

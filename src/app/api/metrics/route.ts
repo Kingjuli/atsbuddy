@@ -1,5 +1,7 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { getMetrics, getTotals } from "@/lib/metrics";
+import { getMetricsAsync, getTotalsAsync } from "@/lib/metrics";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -13,8 +15,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
   }
-  const metrics = getMetrics();
-  const totals = getTotals();
+  // Prefer Redis-backed async aggregation when available
+  const metrics = await getMetricsAsync();
+  const totals = await getTotalsAsync();
   const res = NextResponse.json({ ok: true, metrics, totals });
   // If header auth used and cookie missing, set cookie for subsequent requests
   if (!hasValidCookie) {
