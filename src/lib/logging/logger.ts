@@ -38,7 +38,7 @@ export class StoreLogger {
     this.minLevel = options?.level ?? envLevel;
     this.alsoConsole = options?.console ?? (process.env.NODE_ENV !== "production");
     this.key = options?.key ?? "atsbuddy:logs";
-    this.maxKeep = options?.maxKeep ?? parseIntFromEnv(process.env.LOG_MAX_LINES, 5000);
+    this.maxKeep = options?.maxKeep ?? parseIntFromEnv(process.env.LOG_MAX_LINES, 1000);
   }
 
   private shouldLog(level: LogLevel): boolean {
@@ -62,8 +62,22 @@ export class StoreLogger {
 
   private async persist(line: string): Promise<void> {
     const store = getListStore("logs");
-    await store.push(this.key, line.trim());
+    const trimmed = line.trim();
+    await store.push(this.key, trimmed);
     await store.trimToLast(this.key, this.maxKeep);
+
+    // Also index by requestId for efficient per-request retrieval
+    try {
+      const parsed = JSON.parse(trimmed) as { requestId?: unknown };
+      const requestId = typeof parsed.requestId === "string" && parsed.requestId.length ? parsed.requestId : null;
+      if (requestId) {
+        const reqKey = `${this.key}:req:${requestId}`;
+        await store.push(reqKey, trimmed);
+        await store.trimToLast(reqKey, this.maxKeep);
+      }
+    } catch (e) {
+      console.error("logger.persist: failed to index by requestId", e);
+    }
   }
 
   private async writeLine(line: string): Promise<void> { await this.persist(line); }

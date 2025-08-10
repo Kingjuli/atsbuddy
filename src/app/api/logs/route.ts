@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
   const unattributed = url.searchParams.get("unattributed") === "1";
   const limit = Math.min(1000, Math.max(10, Number(url.searchParams.get("limit") || 200)));
   const levels = url.searchParams.getAll("level");
+  const cursorParam = url.searchParams.get("cursor");
+  const cursor = cursorParam ? Math.max(0, Number(cursorParam)) : 0;
 
   logger.info("logs.start", { requestId: reqId, endpoint: "/api/logs", unattributed, limit, levels: levels.length });
   // Cookie-based auth; fallback to header password for first login
@@ -26,14 +28,16 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const entries = await loadLogs({ requestId: filterRequestId, unattributed, limit, levels: levels.length ? levels : undefined });
-  const res = NextResponse.json({ ok: true, entries }, { headers: { "x-request-id": reqId } });
+  const { entries, nextCursor } = await loadLogs({ requestId: filterRequestId, unattributed, limit, levels: levels.length ? levels : undefined, cursor, maxBytes: 700_000 });
+  const res = NextResponse.json({ ok: true, entries, nextCursor, limit, cursor }, { headers: { "x-request-id": reqId } });
   if (!hasValidCookie) {
     try {
       const { createAuthToken, getCookieOptions } = await import("@/lib/auth");
       const newToken = await createAuthToken();
       res.cookies.set(AUTH_COOKIE_NAME, newToken, getCookieOptions());
-    } catch {}
+    } catch (e) {
+      console.error("/api/logs: failed to set auth cookie", e);
+    }
   }
   logger.info("logs.finish", { requestId: reqId, endpoint: "/api/logs", returned: entries.length });
   return res;

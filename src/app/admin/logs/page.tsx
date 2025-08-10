@@ -14,6 +14,7 @@ export default function LogsPage() {
   const [requestId, setRequestId] = useState("");
   const [level, setLevel] = useState<string>("");
   const [entries, setEntries] = useState<LogEntry[]>([]);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
   const [mode, setMode] = useState<"requests" | "unattributed">("requests");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -32,12 +33,37 @@ export default function LogsPage() {
       if (level) params.append("level", level);
       params.set("limit", String(limit));
       const res = await fetch(`/api/logs?${params.toString()}`);
-      const json = (await res.json()) as { ok: boolean; entries?: LogEntry[]; error?: string };
+      const json = (await res.json()) as { ok: boolean; entries?: LogEntry[]; nextCursor?: number | null; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error || "Failed");
       setEntries(json.entries || []);
+      setNextCursor(json.nextCursor ?? null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to fetch");
       setEntries([]);
+      setNextCursor(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    if (nextCursor == null) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const params = new URLSearchParams();
+      if (mode === "unattributed") params.set("unattributed", "1");
+      if (mode !== "unattributed" && requestId.trim()) params.set("requestId", requestId.trim());
+      if (level) params.append("level", level);
+      params.set("limit", String(limit));
+      params.set("cursor", String(nextCursor));
+      const res = await fetch(`/api/logs?${params.toString()}`);
+      const json = (await res.json()) as { ok: boolean; entries?: LogEntry[]; nextCursor?: number | null; error?: string };
+      if (!res.ok || !json.ok) throw new Error(json.error || "Failed");
+      setEntries((prev) => [...prev, ...(json.entries || [])]);
+      setNextCursor(json.nextCursor ?? null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
       setLoading(false);
     }
@@ -242,6 +268,13 @@ export default function LogsPage() {
             )}
           </div>
         ))}
+        <div className="flex justify-center pt-2">
+          {nextCursor != null && (
+            <button onClick={loadMore} className="px-3 py-2 rounded border border-foreground/20 text-sm" disabled={loading}>
+              {loading ? "Loading…" : "Load more"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

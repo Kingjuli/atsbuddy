@@ -20,6 +20,9 @@ type ApiResponse = {
   ok: boolean;
   metrics: Metric[];
   totals: { totalCost: number; totalRequests: number; totalInput: number; totalCachedInput: number; totalOutput: number };
+  nextCursor?: number | null;
+  limit?: number;
+  cursor?: number;
 };
 
 export default function MetricsPage() {
@@ -29,18 +32,46 @@ export default function MetricsPage() {
   const [modelFilter, setModelFilter] = useState<string>("");
   const [currency, setCurrency] = useState<SupportedCurrency>("USD");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [limit, setLimit] = useState<number>(200);
 
   async function load() {
     setLoading(true);
     setErr(null);
     try {
-      const res = await fetch("/api/metrics");
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      if (modelFilter) params.set("model", modelFilter);
+      const res = await fetch(`/api/metrics?${params.toString()}`);
       const json = (await res.json()) as ApiResponse & { error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error || "Failed to fetch");
       setData(json);
+      setNextCursor(json.nextCursor ?? null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to fetch");
       setData(null);
+      setNextCursor(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    if (nextCursor == null) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      params.set("cursor", String(nextCursor));
+      if (modelFilter) params.set("model", modelFilter);
+      const res = await fetch(`/api/metrics?${params.toString()}`);
+      const json = (await res.json()) as ApiResponse & { error?: string };
+      if (!res.ok || !json.ok) throw new Error(json.error || "Failed to fetch");
+      setData((prev) => prev ? { ...prev, metrics: [...prev.metrics, ...json.metrics], totals: json.totals } : json);
+      setNextCursor(json.nextCursor ?? null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
       setLoading(false);
     }
@@ -120,6 +151,11 @@ export default function MetricsPage() {
               ))}
             </select>
           )}
+          <select value={String(limit)} onChange={(e) => setLimit(Number(e.target.value))} className="px-2 py-2 rounded border border-foreground/20 text-sm bg-background" title="Page size">
+            {[50, 100, 150, 200].map((n) => (
+              <option key={n} value={n}>{n} limit</option>
+            ))}
+          </select>
           <select
             value={currency}
             onChange={(e) => setCurrency(e.target.value as "USD" | "KES")}
@@ -194,6 +230,13 @@ export default function MetricsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="flex justify-center pt-2">
+            {nextCursor != null && (
+              <button onClick={loadMore} disabled={loading} className="px-3 py-2 rounded border border-foreground/20 text-sm">
+                {loading ? "Loading…" : "Load more"}
+              </button>
+            )}
           </div>
         </div>
       )}
