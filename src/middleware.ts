@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
 
-const PROTECTED_PATHS = ["/api/metrics", "/api/logs", "/admin"];
+// Only protect the admin UI here. The API routes for metrics/logs
+// perform their own auth (and set cookies on first header-auth hit).
+const PROTECTED_PATHS = ["/admin"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -24,8 +26,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/api/metrics",
-    "/api/logs",
     "/admin",
     "/admin/:path*",
   ],

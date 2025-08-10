@@ -1,14 +1,20 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { loadLogs } from "@/lib/logReader";
+import { loadLogs } from "@/lib/logging/logReader";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
+import crypto from "node:crypto";
+import { logger } from "@/lib/logging/logger";
 
 export async function GET(req: NextRequest) {
+  const reqId = crypto.randomUUID();
   const url = new URL(req.url);
-  const requestId = url.searchParams.get("requestId") || undefined;
+  const filterRequestId = url.searchParams.get("requestId") || undefined;
   const unattributed = url.searchParams.get("unattributed") === "1";
   const limit = Math.min(1000, Math.max(10, Number(url.searchParams.get("limit") || 200)));
   const levels = url.searchParams.getAll("level");
 
+  logger.info("logs.start", { requestId: reqId, endpoint: "/api/logs", unattributed, limit, levels: levels.length });
   // Cookie-based auth; fallback to header password for first login
   const token = req.cookies.get(AUTH_COOKIE_NAME)?.value;
   const hasValidCookie = await verifyAuthToken(token);
@@ -16,12 +22,12 @@ export async function GET(req: NextRequest) {
     const pass = process.env.METRICS_PASSWORD || "";
     const authHeader = req.headers.get("authorization") || "";
     if (!pass || authHeader !== `Bearer ${pass}`) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401, headers: { "x-request-id": reqId } });
     }
   }
 
-  const entries = await loadLogs({ requestId, unattributed, limit, levels: levels.length ? levels : undefined });
-  const res = NextResponse.json({ ok: true, entries });
+  const entries = await loadLogs({ requestId: filterRequestId, unattributed, limit, levels: levels.length ? levels : undefined });
+  const res = NextResponse.json({ ok: true, entries }, { headers: { "x-request-id": reqId } });
   if (!hasValidCookie) {
     try {
       const { createAuthToken, getCookieOptions } = await import("@/lib/auth");
@@ -29,6 +35,7 @@ export async function GET(req: NextRequest) {
       res.cookies.set(AUTH_COOKIE_NAME, newToken, getCookieOptions());
     } catch {}
   }
+  logger.info("logs.finish", { requestId: reqId, endpoint: "/api/logs", returned: entries.length });
   return res;
 }
 

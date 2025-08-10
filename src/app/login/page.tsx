@@ -11,9 +11,13 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
+      const csrfRes = await fetch("/api/auth/login");
+      const csrfJson = (await csrfRes.json()) as { ok?: boolean; csrfToken?: string; error?: string };
+      if (!csrfRes.ok || !csrfJson.csrfToken) throw new Error(csrfJson.error || "Failed to get CSRF token");
+      const csrfToken = csrfJson.csrfToken;
       const res = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-csrf-token": csrfToken },
         body: JSON.stringify({ password }),
       });
       const json = (await res.json()) as { ok: boolean; error?: string };
