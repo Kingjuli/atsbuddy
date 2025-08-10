@@ -12,11 +12,11 @@ If this project helps you, please consider starring it — it really helps!
 
 Prereqs: Node 20+, npm
 
-1) Copy env and set two values
+1) Copy env and set three values
 
 ```bash
 cp env.example .env.local
-# Required: OPENAI_API_KEY and METRICS_PASSWORD
+# Required: OPENAI_API_KEY, METRICS_PASSWORD, METRICS_AUTH_SECRET
 ```
 
 2) Install and run
@@ -39,12 +39,18 @@ Create `.env.local` from `env.example`.
 
 - `OPENAI_API_KEY` (required)
 - `METRICS_PASSWORD` (required)
+- `METRICS_AUTH_SECRET` (required) — HMAC secret used to sign the admin auth cookie
 
-Optional (power users):
-- `OPENAI_MODEL` (default `gpt-5-nano`)
-- `OPENAI_SERVICE_TIER` (`flex` | `auto` | `priority`, default `flex`)
-- Logging: `LOG_DIR`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_MAX_FILES`, `LOG_LEVEL`
-- Metrics storage: `METRICS_DIR`
+Optional:
+- AI: `OPENAI_MODEL`, `OPENAI_SERVICE_TIER`, `OPENAI_REASONING_EFFORT`, `OPENAI_VERBOSITY`
+- Logging: `LOG_LEVEL`, `LOG_MAX_LINES`, `LOG_KEY`
+- Rate limit: `RATE_WINDOW_SECONDS`, `RATE_MAX`
+- Storage: `STORAGE_BACKEND` (set to `file` to force file storage), `DATA_DIR` (default `.data/atsbuddy`, Vercel uses `/tmp/atsbuddy-data`)
+- Upstash/Redis: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (used implicitly by `Redis.fromEnv()` if configured)
+
+Storage behavior:
+- By default, the app tries Upstash Redis via `Redis.fromEnv()`; if not configured, it falls back to file storage.
+- On Vercel, file storage lives in `/tmp` and resets between deployments.
 
 ## Usage screenshots / demo
 
@@ -62,7 +68,7 @@ Demo video (replace with your link): `[Watch 2‑minute demo]`
 
 - One‑click deploy to Vercel (imports your existing repo):
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/import?repository-url=https://github.com/Kingjuli/atsbuddy&env=OPENAI_API_KEY,METRICS_PASSWORD&envDescription=Set%20your%20OpenAI%20API%20key%20and%20an%20admin%20password%20for%20metrics%2Flogs.&envLink=https://github.com/Kingjuli/atsbuddy/blob/main/env.example)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/import?repository-url=https://github.com/Kingjuli/atsbuddy&env=OPENAI_API_KEY,METRICS_PASSWORD,METRICS_AUTH_SECRET&envDescription=Set%20OpenAI%20API%20key%2C%20admin%20password%2C%20and%20METRICS_AUTH_SECRET%20(for%20cookie%20signing).&envLink=https://github.com/Kingjuli/atsbuddy/blob/main/env.example)
 
 - After deploy, visit `/login` and use `METRICS_PASSWORD` for admin.
 - Any Node host that supports Next.js 15+ works
