@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
-import type { AnalysisResponse } from "@/lib/types";
+import type { AnalysisResponse } from "@/types/api";
 
 type PendingState = {
   filename?: string;
@@ -17,11 +17,13 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const canAnalyze = useMemo(() => !!resumeFile, [resumeFile]);
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
+    setIsDragging(false);
     const file = e.dataTransfer.files?.[0] || null;
     if (!file) return;
     const dt = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>;
@@ -30,6 +32,17 @@ export default function Home() {
 
   function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
+    if (!isDragging) setIsDragging(true);
+  }
+
+  function handleDragEnter(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDragging(false);
   }
 
   async function loadSample() {
@@ -166,31 +179,65 @@ export default function Home() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-5xl mx-auto px-6 py-10">
         <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight">ATSBuddy</h1>
-          <p className="text-sm text-foreground/80 mt-1">
-            Upload your resume, paste a job description (optional), and get
-            concise, actionable feedback to win the interview.
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">ATSBuddy</span>
+          </h1>
+          <p className="text-sm md:text-base text-foreground/80 mt-1">
+            Upload your resume, optionally paste a job description, and get concise, actionable feedback to win the interview.
           </p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <section className="rounded-lg border border-foreground/10 p-4" onDrop={handleDrop} onDragOver={handleDragOver}>
+          <section
+            className={
+              "rounded-lg border p-4 transition-colors " +
+              (isDragging ? "border-foreground/40 bg-foreground/[0.03]" : "border-foreground/10")
+            }
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            role="region"
+            aria-label="Upload resume"
+          >
             <h2 className="font-medium mb-3">1. Upload resume</h2>
+
             <input
               ref={inputRef}
+              id="resume-input"
               type="file"
               accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
               onChange={handleFileChange}
-              className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-foreground file:text-background hover:file:bg-foreground/90"
+              className="sr-only"
             />
-            <div className="flex items-center gap-2 mt-2">
-              <button onClick={loadSample} className="px-2 py-1 rounded border border-foreground/20 text-xs">Load sample</button>
-              <span className="text-xs text-foreground/60">or drag & drop a file above</span>
+
+            <div
+              className="flex flex-col items-center justify-center gap-2 border border-dashed border-foreground/20 rounded-md p-6 cursor-pointer hover:border-foreground/30 focus:outline-none focus:ring-2 focus:ring-foreground/30"
+              tabIndex={0}
+              onClick={() => inputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  inputRef.current?.click();
+                }
+              }}
+              aria-describedby="upload-help"
+            >
+              <div className="text-sm">
+                <span className="font-medium">Drop your file here</span> or click to browse
+              </div>
+              <div id="upload-help" className="text-xs text-foreground/70">
+                Accepted: PDF, DOCX, TXT
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <button onClick={loadSample} className="px-2 py-1 rounded border border-foreground/20 text-xs">Try with a sample</button>
+              </div>
             </div>
+
             {pending && (
               <div className="mt-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">{pending.filename}</span>
+                  <span className="font-medium truncate" title={pending.filename}>{pending.filename}</span>
                   {typeof pending.words === "number" && (
                     <span className="text-foreground/70">{pending.words} words</span>
                   )}
@@ -200,15 +247,15 @@ export default function Home() {
                     {pending.preview}
                   </pre>
                 )}
-                  {pending.pdfUrl && (
-                    <div className="mt-2 h-64 border border-foreground/10 rounded overflow-hidden">
-                      <iframe
-                        src={pending.pdfUrl}
-                        className="w-full h-full"
-                        title="PDF preview"
-                      />
-                    </div>
-                  )}
+                {pending.pdfUrl && (
+                  <div className="mt-2 h-64 border border-foreground/10 rounded overflow-hidden">
+                    <iframe
+                      src={pending.pdfUrl}
+                      className="w-full h-full"
+                      title="PDF preview"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -229,9 +276,17 @@ export default function Home() {
           <button
             disabled={!canAnalyze || loading}
             onClick={analyze}
-            className="h-10 px-4 rounded bg-foreground text-background text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-busy={loading}
+            className="h-10 px-4 rounded bg-foreground text-background text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
-            {loading ? "Analyzing…" : "Analyze resume"}
+            {loading ? (
+              <>
+                <span className="inline-block h-4 w-4 rounded-full border-2 border-background/30 border-t-background animate-spin" />
+                Analyzing…
+              </>
+            ) : (
+              "Analyze resume"
+            )}
           </button>
           <button
             onClick={resetAll}
@@ -245,7 +300,7 @@ export default function Home() {
         </div>
 
         {error && (
-          <div className="mt-4 text-sm text-red-600">{error}</div>
+          <div className="mt-4 text-sm text-red-600" role="alert" aria-live="polite">{error}</div>
         )}
 
         {result?.ok && (
