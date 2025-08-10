@@ -1,7 +1,7 @@
 import { getListStore } from "@/lib/storage";
 
 const LOG_KEY = process.env.LOG_KEY || "atsbuddy:logs";
-const LOG_MAX_LINES = parseInt(process.env.LOG_MAX_LINES || "5000", 10);
+const LOG_MAX_LINES = parseInt(process.env.LOG_MAX_LINES || "100", 10);
 
 export type LogEntry = {
   ts?: string;
@@ -11,19 +11,19 @@ export type LogEntry = {
   [key: string]: unknown;
 };
 
-/**
- * loadLogs returns recent log entries from the ListStore with simple filtering.
- * Example:
- *   const entries = await loadLogs({ requestId: "r1", limit: 100 });
- */
-function parseLines(lines: string[]): LogEntry[] {
+// Minimal tolerant parsing: accept objects, or JSON.parse strings; skip otherwise
+function parseLines(lines: Array<unknown>): LogEntry[] {
   const entries: LogEntry[] = [];
-  for (const line of lines) {
+  for (const raw of lines) {
+    if (raw && typeof raw === "object") {
+      entries.push(raw as LogEntry);
+      continue;
+    }
     try {
-      const obj = JSON.parse(line);
+      const obj = JSON.parse(String(raw ?? ""));
       if (obj && typeof obj === "object") entries.push(obj as LogEntry);
-    } catch {
-      // ignore malformed
+    } catch (e) {
+      console.error("logReader.parseLines: parse error", e);
     }
   }
   return entries;
@@ -34,21 +34,46 @@ export async function loadLogs(params: {
   unattributed?: boolean;
   limit?: number;
   levels?: string[];
-}): Promise<LogEntry[]> {
-  const { requestId, unattributed, limit = 200, levels } = params;
+  cursor?: number; // number of tail items already paged through
+  maxBytes?: number; // unused (kept for API compatibility)
+}): Promise<{ entries: LogEntry[]; nextCursor: number | null }>
+{
+  const { requestId, unattributed, levels } = params;
+  const pageLimit = Math.min(LOG_MAX_LINES, Math.max(10, params.limit ?? 100));
+  const cursor = Math.max(0, Math.floor(params.cursor ?? 0));
   const store = getListStore("logs");
-  const raw = await store.range(LOG_KEY, -LOG_MAX_LINES, -1);
-  const allEntries = parseLines(raw);
+  let raw: unknown[] = [];
+  if (requestId) {
+    // Use dedicated per-request key for efficient fetch
+    const reqKey = `${LOG_KEY}:req:${requestId}`;
+    const start = -(cursor + pageLimit);
+    const stop = -(cursor + 1);
+    try {
+      raw = (await store.range(reqKey, start, stop)) as unknown[];
+    } catch (e) {
+      console.error("logReader.loadLogs: range reqKey error", e);
+      raw = [];
+    }
+  } else {
+    const start = -(cursor + pageLimit);
+    const stop = -(cursor + 1);
+    try {
+      raw = (await store.range(LOG_KEY, start, stop)) as unknown[];
+    } catch (e) {
+      console.error("logReader.loadLogs: range error", e);
+      return { entries: [], nextCursor: null };
+    }
+  }
 
-  // Sort by timestamp desc if present; otherwise stable order
-  allEntries.sort((a, b) => {
+  // Parse and sort newest-first
+  const pageEntries = parseLines(raw).sort((a, b) => {
     const ta = a.ts ? Date.parse(a.ts) : 0;
     const tb = b.ts ? Date.parse(b.ts) : 0;
     return tb - ta;
   });
 
-  const filtered: LogEntry[] = [];
-  for (const e of allEntries) {
+  const result: LogEntry[] = [];
+  for (const e of pageEntries) {
     if (levels) {
       const lvl = e.level ? String(e.level) : null;
       if (!lvl) continue;
@@ -56,16 +81,18 @@ export async function loadLogs(params: {
     }
     const hasReq = typeof e.requestId === "string" && e.requestId.length > 0;
     if (requestId) {
-      if (!hasReq || e.requestId !== requestId) continue;
+      // already scoped by per-request key
     } else if (unattributed) {
       if (hasReq) continue;
     } else {
-      if (!hasReq) continue; // default to request-scoped logs when no query specified
+      if (!hasReq) continue;
     }
-    filtered.push(e);
-    if (filtered.length >= limit) break;
+    result.push(e);
+    if (result.length >= pageLimit) break;
   }
-  return filtered;
+
+  const nextCursor = raw.length > 0 ? cursor + raw.length : null;
+  return { entries: result, nextCursor };
 }
 
 

@@ -214,7 +214,9 @@ export class AIManager {
       recordMetric({ timestamp: Date.now(), endpoint: (typeof metadata?.endpoint === 'string' ? metadata.endpoint : undefined), requestId, model, serviceTier: usedTier, inputTokens, cachedInputTokens, outputTokens, totalTokens, latencyMs, costUSD });
       logger.info("AI response", { ...baseLog, hasOutputJson: false, textLength: safeText.length });
       return parsed;
-    } catch {}
+    } catch (e) {
+      console.error("AIManager: direct parse failed", e);
+    }
     // Try to extract first JSON object/array substring
     const extracted = extractJsonFromText(safeText);
     if (extracted) {
