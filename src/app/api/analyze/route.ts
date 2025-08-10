@@ -81,9 +81,7 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-  } catch (e) {
-    console.error("/api/analyze: rate limit block failed", e);
-  }
+  } catch {}
   try {
     let resumeText = "";
     let jobText = "";
