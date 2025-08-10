@@ -4,12 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMetricsAsync, getTotalsAsync, getMetricsPage } from "@/lib/metrics/index";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
 import crypto from "node:crypto";
-import { logger } from "@/lib/logging/logger";
 
 export async function GET(req: NextRequest) {
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
-  logger.info("metrics.start", { requestId, endpoint: "/api/metrics" });
   // Accept either cookie token or initial password via Authorization
   const token = req.cookies.get(AUTH_COOKIE_NAME)?.value;
   const hasValidCookie = await verifyAuthToken(token);
@@ -33,7 +31,6 @@ export async function GET(req: NextRequest) {
   const { metrics, nextCursor } = await getMetricsPage({ limit, cursor, model, endpoint, maxBytes: 700_000 });
   const totals = await getTotalsAsync();
   const durationMs = Date.now() - startedAt;
-  logger.info("metrics.finish", { requestId, endpoint: "/api/metrics", durationMs, count: metrics.length });
   const res = NextResponse.json({ ok: true, metrics, totals, nextCursor, limit, cursor }, { headers: { "x-request-id": requestId } });
   // If header auth used and cookie missing, set cookie for subsequent requests
   if (!hasValidCookie) {

@@ -41,6 +41,7 @@ export default function Home() {
       handleFileChange(dt);
       setJobText(sampleJD);
     } catch (e) {
+      console.error("Home.loadSample error", e);
       setError("Failed to load sample resume");
     }
   }
@@ -89,6 +90,7 @@ export default function Home() {
         setPending({ filename: file.name, words: undefined, preview: undefined, pdfUrl: undefined });
       }
     } catch (err) {
+      console.error("Home.handleFileChange error", err);
       const msg = err instanceof Error ? err.message : "Failed to read file";
       setError(msg);
       setPending(null);
@@ -142,6 +144,7 @@ export default function Home() {
       if (!json.ok) throw new Error(json.error || "Analysis failed");
       setResult(json);
     } catch (err) {
+      console.error("Home.analyze error", err);
       const msg = err instanceof Error ? err.message : "Failed to analyze";
       setError(msg);
     } finally {
@@ -360,7 +363,8 @@ function toText(input: unknown): string {
 }
 
 function toMarkdown(res: AnalysisResponse): string {
-  const d = res.data || {} as any;
+  type AnalysisData = NonNullable<AnalysisResponse["data"]>;
+  const d: Partial<AnalysisData> = res.data ?? {};
   const lines: string[] = [];
   lines.push(`# ATSBuddy Analysis`);
   if (typeof d.score === "number") lines.push(`\n**Score:** ${d.score}/100`);
@@ -370,7 +374,7 @@ function toMarkdown(res: AnalysisResponse): string {
   }
   if (Array.isArray(d.missingKeywords) && d.missingKeywords.length) {
     lines.push(`\n## Missing keywords`);
-    lines.push(d.missingKeywords.map((k: unknown) => ` ${String(k)} `).join(", ").replaceAll("\u0000", "`"));
+    lines.push(d.missingKeywords.map((k: unknown) => `- ${String(k)}`).join("\n"));
   }
   if (Array.isArray(d.rewriteBullets) && d.rewriteBullets.length) {
     lines.push(`\n## Suggested bullet rewrites`);

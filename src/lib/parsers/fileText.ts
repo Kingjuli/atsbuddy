@@ -28,19 +28,23 @@ export async function extractTextFromFile(file: File): Promise<ExtractedText> {
         meta: {
           filename,
           mimeType,
-          numPages: typeof (out as any).numpages === "number" ? (out as any).numpages : undefined,
+          numPages: typeof (out as { numpages?: unknown }).numpages === "number" ? (out as { numpages?: number }).numpages : undefined,
           wordCount: countWords(text),
         },
       };
-    } catch {
+    } catch (err) {
+      console.error("extractTextFromFile.pdf primary parse error", err);
       const { PdfReader } = await import("pdfreader");
       const reader = new PdfReader();
       const lines: string[] = [];
       const textByPage: string[] = [];
       type PdfReaderItem = { page?: number; text?: string } | null;
-      await new Promise<void>((resolve, reject) => {
+       await new Promise<void>((resolve, reject) => {
         reader.parseBuffer(buffer, (err: unknown, item: PdfReaderItem) => {
-          if (err) return reject(err);
+          if (err) {
+            console.error("extractTextFromFile.pdf fallback parse error", err);
+            return reject(err);
+          }
           if (!item) {
             textByPage.push(lines.join(" "));
             return resolve();

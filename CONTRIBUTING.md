@@ -15,9 +15,10 @@ npm run dev
 
 - Keep edits small and focused; prefer separate PRs for unrelated changes
 - TypeScript: prefer explicit types on exported APIs
-- Logging: use `logger.info|warn|error` with a `requestId` when available
+- Logging: use `logger.info|warn|error` and always include a `requestId` when available. Avoid any logging in the metrics and logs endpoints (`src/app/api/metrics/route.ts`, `src/app/api/logs/route.ts`). Keep logs concise and useful.
 - Storage: code should not read Upstash env vars directly; prefer `Redis.fromEnv()` and storage selection in `lib/storage/index.ts`
 - Avoid adding heavy dependencies unless necessary
+- Comments: avoid justification/explanatory comments for removals or code history. Comments should describe the current code to aid maintainers.
 
 ### Commit style
 

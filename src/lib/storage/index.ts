@@ -20,7 +20,8 @@ export function getListStore(kind: string = ""): ListStore {
     // Prefer Upstash when available via fromEnv(); fall back to file storage
     try {
       storeSingletons[k] = new UpstashListStore(kind || "");
-    } catch {
+    } catch (e) {
+      console.error("getListStore Upstash init error", e);
       storeSingletons[k] = new FileListStore(kind || "");
     }
   }

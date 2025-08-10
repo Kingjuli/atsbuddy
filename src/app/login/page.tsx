@@ -30,6 +30,7 @@ export default function LoginPage() {
       if (cb === "/logs" || cb.startsWith("/logs/")) cb = "/admin/logs";
       window.location.replace(cb);
     } catch (e) {
+      console.error("Login.submit error", e);
       setError(e instanceof Error ? e.message : "Login failed");
     } finally {
       setLoading(false);

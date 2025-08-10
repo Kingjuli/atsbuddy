@@ -48,6 +48,7 @@ export default function MetricsPage() {
       setData(json);
       setNextCursor(json.nextCursor ?? null);
     } catch (e) {
+      console.error("MetricsPage.load error", e);
       setErr(e instanceof Error ? e.message : "Failed to fetch");
       setData(null);
       setNextCursor(null);
@@ -71,6 +72,7 @@ export default function MetricsPage() {
       setData((prev) => prev ? { ...prev, metrics: [...prev.metrics, ...json.metrics], totals: json.totals } : json);
       setNextCursor(json.nextCursor ?? null);
     } catch (e) {
+      console.error("MetricsPage.loadMore error", e);
       setErr(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
       setLoading(false);
@@ -79,6 +81,7 @@ export default function MetricsPage() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const uniqueModels = useMemo(() => {
@@ -128,8 +131,8 @@ export default function MetricsPage() {
       await copyToClipboard(id);
       setCopiedId(id);
       setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1500);
-    } catch {
-      // noop
+    } catch (e) {
+      console.error("MetricsPage.copyRequestId error", e);
     }
   }
 

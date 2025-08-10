@@ -1,6 +1,6 @@
 import { Redis } from "@upstash/redis";
 import type { ListStore } from "./types";
-import { logger } from "../logging/logger";
+ 
 
 /**
  * UpstashListStore implements ListStore using Upstash Redis REST API.
@@ -62,19 +62,20 @@ export class UpstashListStore implements ListStore {
         }
 
       } catch (e) {
+        console.error("upstash.range chunk error", e);
         // On error, try smaller chunks
         const mid = Math.floor((i + j) / 2);
         try {
           const p1 = await this.client.lrange(key, i, mid);
           results.push(...p1);
         } catch (e) {
-          console.error("upstash.range: left split error", e);
+          console.error("upstash.range left split error", e);
         }
         try {
           const p2 = await this.client.lrange(key, mid + 1, j);
           results.push(...p2);
         } catch (e) {
-          console.error("upstash.range: right split error", e);
+          console.error("upstash.range right split error", e);
         }
       }
       i = j + 1;
