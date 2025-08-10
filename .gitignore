@@ -40,8 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# logs
-/logs
-
-# data
-/data
+# metrics and logs
+/.data

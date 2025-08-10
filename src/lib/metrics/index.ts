@@ -17,10 +17,15 @@ export type MetricRecord = {
 const MAX_RECORDS = 500;
 const METRICS_KEY = "atsbuddy:metrics";
 
+/**
+ * recordMetric appends a metric record to persistence.
+ * Example:
+ *   recordMetric({ timestamp: Date.now(), model: "gpt-5-nano", costUSD: 0.00012 });
+ */
 export function recordMetric(rec: MetricRecord) {
   (async () => {
     try {
-      const store = getListStore();
+      const store = getListStore("metrics");
       await store.push(METRICS_KEY, JSON.stringify(rec));
       await store.trimToLast(METRICS_KEY, MAX_RECORDS);
     } catch {
@@ -29,8 +34,13 @@ export function recordMetric(rec: MetricRecord) {
   })();
 }
 
+/**
+ * getMetricsAsync returns the most recent metric records.
+ * Example:
+ *   const rows = await getMetricsAsync();
+ */
 export async function getMetricsAsync(): Promise<MetricRecord[]> {
-  const store = getListStore();
+  const store = getListStore("metrics");
   const items = await store.range(METRICS_KEY, -MAX_RECORDS, -1);
   const parsed: MetricRecord[] = [];
   for (const s of items) {
@@ -39,6 +49,11 @@ export async function getMetricsAsync(): Promise<MetricRecord[]> {
   return parsed.reverse();
 }
 
+/**
+ * getTotalsAsync aggregates totals across metrics.
+ * Example:
+ *   const totals = await getTotalsAsync();
+ */
 export async function getTotalsAsync() {
   const items = await getMetricsAsync();
   let totalCost = 0, totalRequests = 0, totalInput = 0, totalCachedInput = 0, totalOutput = 0;

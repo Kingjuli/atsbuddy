@@ -1,5 +1,5 @@
-// Minimal cookie-based auth for metrics access
-// Uses HMAC-SHA256 to sign a short-lived token stored in an HttpOnly cookie
+// Minimal cookie-based auth for metrics access.
+// Auth utils live in lib/auth to avoid over-nesting.
 
 export const AUTH_COOKIE_NAME = "atsbuddy_auth";
 
@@ -8,9 +8,9 @@ type TokenPayload = {
 };
 
 function getSecret(): string {
-  const secret = process.env.METRICS_AUTH_SECRET || process.env.METRICS_PASSWORD;
+  const secret = process.env.METRICS_AUTH_SECRET;
   if (!secret) {
-    throw new Error("Missing METRICS_AUTH_SECRET or METRICS_PASSWORD env var");
+    throw new Error("Missing METRICS_AUTH_SECRET env var");
   }
   return secret;
 }

@@ -1,5 +1,8 @@
 import { getListStore } from "@/lib/storage";
 
+const LOG_KEY = process.env.LOG_KEY || "atsbuddy:logs";
+const LOG_MAX_LINES = parseInt(process.env.LOG_MAX_LINES || "5000", 10);
+
 export type LogEntry = {
   ts?: string;
   level?: string;
@@ -8,6 +11,11 @@ export type LogEntry = {
   [key: string]: unknown;
 };
 
+/**
+ * loadLogs returns recent log entries from the ListStore with simple filtering.
+ * Example:
+ *   const entries = await loadLogs({ requestId: "r1", limit: 100 });
+ */
 function parseLines(lines: string[]): LogEntry[] {
   const entries: LogEntry[] = [];
   for (const line of lines) {
@@ -28,8 +36,8 @@ export async function loadLogs(params: {
   levels?: string[];
 }): Promise<LogEntry[]> {
   const { requestId, unattributed, limit = 200, levels } = params;
-  const store = getListStore();
-  const raw = await store.range("atsbuddy:logs", -2000, -1);
+  const store = getListStore("logs");
+  const raw = await store.range(LOG_KEY, -LOG_MAX_LINES, -1);
   const allEntries = parseLines(raw);
 
   // Sort by timestamp desc if present; otherwise stable order
@@ -41,7 +49,11 @@ export async function loadLogs(params: {
 
   const filtered: LogEntry[] = [];
   for (const e of allEntries) {
-    if (levels && e.level && !levels.includes(String(e.level))) continue;
+    if (levels) {
+      const lvl = e.level ? String(e.level) : null;
+      if (!lvl) continue;
+      if (!levels.includes(lvl)) continue;
+    }
     const hasReq = typeof e.requestId === "string" && e.requestId.length > 0;
     if (requestId) {
       if (!hasReq || e.requestId !== requestId) continue;

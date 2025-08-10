@@ -21,6 +21,11 @@ function parseIntFromEnv(value: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+/**
+ * StoreLogger writes JSON log lines into a ListStore (e.g., Upstash Redis).
+ * Example:
+ *   logger.info("analyze.start", { requestId: "r1" });
+ */
 export class StoreLogger {
   private readonly minLevel: LogLevel;
   private readonly alsoConsole: boolean;
@@ -56,7 +61,7 @@ export class StoreLogger {
   }
 
   private async persist(line: string): Promise<void> {
-    const store = getListStore();
+    const store = getListStore("logs");
     await store.push(this.key, line.trim());
     await store.trimToLast(this.key, this.maxKeep);
   }
@@ -88,5 +93,3 @@ export class StoreLogger {
 }
 
 export const logger = new StoreLogger();
-
-

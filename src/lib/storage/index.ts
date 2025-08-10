@@ -1,23 +1,34 @@
-import { InMemoryListStore } from "./memory";
 import { UpstashListStore } from "./upstash";
+import { FileListStore } from "./file";
 import type { ListStore } from "./types";
 
-let storeSingleton: ListStore | null = null;
+const storeSingletons: Record<string, ListStore> = {};
 
-export function getListStore(): ListStore {
-  if (storeSingleton) return storeSingleton;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (url && token) {
-    storeSingleton = new UpstashListStore(String(url), String(token));
+/**
+ * getListStore returns a process-wide ListStore.
+ * Example:
+ *   const store = getListStore();
+ *   await store.push("key", JSON.stringify({ a: 1 }));
+ */
+export function getListStore(kind: string = ""): ListStore {
+  const k = kind || "default";
+  if (storeSingletons[k]) return storeSingletons[k];
+  const preferFile = String(process.env.STORAGE_BACKEND || "").toLowerCase() === "file";
+  if (preferFile) {
+    storeSingletons[k] = new FileListStore(kind || "");
   } else {
-    storeSingleton = new InMemoryListStore();
+    // Prefer Upstash when available via fromEnv(); fall back to file storage
+    try {
+      storeSingletons[k] = new UpstashListStore(kind || "");
+    } catch {
+      storeSingletons[k] = new FileListStore(kind || "");
+    }
   }
-  return storeSingleton;
+  return storeSingletons[k];
 }
 
 export type { ListStore } from "./types";
-export { InMemoryListStore } from "./memory";
 export { UpstashListStore } from "./upstash";
+export { FileListStore } from "./file";
 
 

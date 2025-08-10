@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { ResponseCreateParams } from "openai/resources/responses/responses";
 import { logger } from "@/lib/logging/logger";
-import { recordMetric } from "@/lib/metrics";
+import { recordMetric } from "@/lib/metrics/index";
 
 type JsonSchemaShape = {
   name: string;
@@ -19,6 +19,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/**
+ * AIManager wraps the OpenAI client and provides helpers for JSON-structured responses.
+ * Example:
+ *   const ai = new AIManager(process.env.OPENAI_API_KEY);
+ *   const result = await ai.createTextJsonResponse({ system, user, schema, requestId: "r1" });
+ */
 export class AIManager {
   private client: OpenAI;
 
@@ -63,7 +69,7 @@ export class AIManager {
 
     const envTier = (process.env.OPENAI_SERVICE_TIER || "").toLowerCase();
     const defaultTier: "flex" | "auto" | "priority" =
-      envTier === "auto" || envTier === "standard"
+      envTier === "auto"
         ? "auto"
         : envTier === "priority"
         ? "priority"
