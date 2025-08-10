@@ -165,16 +165,38 @@ export async function POST(req: NextRequest) {
     } as const;
 
     const ai = new AIManager(process.env.OPENAI_API_KEY);
-    const data = await ai.createTextJsonResponse({
-      system,
-      user,
-      schema: jsonSchema,
-      // model picked from env in AIManager
-      temperature: 1,
-      maxOutputTokens: 10000,
-      requestId,
-      metadata: { endpoint: "analyze" },
-    });
+    const maxAttemptsRaw = Number(process.env.ANALYZE_AI_MAX_ATTEMPTS || 3);
+    const maxAttempts = Number.isFinite(maxAttemptsRaw) && maxAttemptsRaw > 0 ? Math.floor(maxAttemptsRaw) : 3;
+    let data: unknown = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      data = await ai.createTextJsonResponse({
+        system,
+        user,
+        schema: jsonSchema,
+        // model picked from env in AIManager
+        temperature: 1,
+        maxOutputTokens: 10000,
+        requestId,
+        metadata: { endpoint: "analyze", attempt: String(attempt) },
+      });
+      const generalGuidance = (data as { generalGuidance?: unknown } | null)?.generalGuidance;
+      const hasGuidance = typeof generalGuidance === "string" && generalGuidance.trim().length > 0;
+      if (hasGuidance) break;
+      logger.warn("analyze.retry_empty_guidance", { requestId, attempt, maxAttempts });
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 300 * attempt));
+      }
+    }
+    const finalGuidance = (data as { generalGuidance?: unknown } | null)?.generalGuidance;
+    const hasFinalGuidance = typeof finalGuidance === "string" && finalGuidance.trim().length > 0;
+    if (!hasFinalGuidance) {
+      const durationMs = Date.now() - startedAt;
+      logger.error("analyze.error_empty_guidance", { requestId, endpoint: "/api/analyze", durationMs, attempts: maxAttempts });
+      return NextResponse.json(
+        { ok: false, requestId, error: "We couldn't complete the analysis right now. Please try again in a few minutes." },
+        { status: 502, headers: { "x-request-id": requestId } }
+      );
+    }
     const durationMs = Date.now() - startedAt;
     const filename = meta?.filename;
     const wordCount = meta?.wordCount;
