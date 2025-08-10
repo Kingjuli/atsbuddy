@@ -10,48 +10,59 @@ export type ExtractedText = {
   };
 };
 
-const MAX_BYTES = 8 * 1024 * 1024; // 8MB safety limit
-
 export async function extractTextFromFile(file: File): Promise<ExtractedText> {
   const mimeType = file.type || inferMimeFromName(file.name);
   const filename = file.name || "resume";
 
   const arrayBuffer = await file.arrayBuffer();
-  if (arrayBuffer.byteLength > MAX_BYTES) {
-    throw new Error("File too large. Please upload a file under 8MB.");
-  }
   const buffer = Buffer.from(arrayBuffer);
 
   if (mimeType === "application/pdf") {
-    const { PdfReader } = await import("pdfreader");
-    const reader = new PdfReader();
-    const lines: string[] = [];
-    const textByPage: string[] = [];
-    type PdfReaderItem = { page?: number; text?: string } | null;
-    await new Promise<void>((resolve, reject) => {
-      reader.parseBuffer(buffer, (err: unknown, item: PdfReaderItem) => {
-        if (err) return reject(err);
-        if (!item) {
-          textByPage.push(lines.join(" "));
-          return resolve();
-        }
-        if (item.page) {
-          if (lines.length) textByPage.push(lines.join(" "));
-          lines.length = 0;
-        } else if (item.text) {
-          lines.push(item.text);
-        }
+    // Prefer pdf-parse for accuracy; fallback to pdfreader if unavailable
+    try {
+      const pdfParse = (await import("pdf-parse")).default as (b: Buffer) => Promise<{ text: string; numpages?: number }>;
+      const out = await pdfParse(buffer);
+      const text = normalizeWhitespace(out.text || "");
+      return {
+        text,
+        meta: {
+          filename,
+          mimeType,
+          numPages: typeof (out as any).numpages === "number" ? (out as any).numpages : undefined,
+          wordCount: countWords(text),
+        },
+      };
+    } catch {
+      const { PdfReader } = await import("pdfreader");
+      const reader = new PdfReader();
+      const lines: string[] = [];
+      const textByPage: string[] = [];
+      type PdfReaderItem = { page?: number; text?: string } | null;
+      await new Promise<void>((resolve, reject) => {
+        reader.parseBuffer(buffer, (err: unknown, item: PdfReaderItem) => {
+          if (err) return reject(err);
+          if (!item) {
+            textByPage.push(lines.join(" "));
+            return resolve();
+          }
+          if (item.page) {
+            if (lines.length) textByPage.push(lines.join(" "));
+            lines.length = 0;
+          } else if (item.text) {
+            lines.push(item.text);
+          }
+        });
       });
-    });
-    const text = normalizeWhitespace(textByPage.join("\n\n"));
-    return {
-      text,
-      meta: {
-        filename,
-        mimeType,
-        wordCount: countWords(text),
-      },
-    };
+      const text = normalizeWhitespace(textByPage.join("\n\n"));
+      return {
+        text,
+        meta: {
+          filename,
+          mimeType,
+          wordCount: countWords(text),
+        },
+      };
+    }
   }
 
   if (
@@ -86,9 +97,15 @@ export async function extractTextFromFile(file: File): Promise<ExtractedText> {
     };
   }
 
-  throw new Error(
-    "Unsupported file type. Please upload a PDF, DOCX, or TXT resume."
-  );
+  // Return empty text if unsupported. Caller (route) should validate type and size.
+  return {
+    text: "",
+    meta: {
+      filename,
+      mimeType,
+      wordCount: 0,
+    },
+  };
 }
 
 function inferMimeFromName(name: string): string {

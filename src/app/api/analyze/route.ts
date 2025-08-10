@@ -7,7 +7,7 @@ import { logger } from "@/lib/logging/logger";
 import { Redis } from "@upstash/redis";
 
 const AnalyzeSchema = z.object({
-  resumeText: z.string().min(50, "Resume text seems too short; upload a real resume."),
+  resumeText: z.string().min(100, "Resume text seems too short; upload a real resume."),
   jobText: z.string().optional().default(""),
   meta: z
     .object({ filename: z.string().optional(), wordCount: z.number().optional() })
@@ -83,6 +83,8 @@ export async function POST(req: NextRequest) {
     }
   } catch {}
   try {
+    // Demo mode: allow running without OPENAI_API_KEY by returning a mocked response
+    const demoMode = !process.env.OPENAI_API_KEY || process.env.DEMO_MODE === "1";
     let resumeText = "";
     let jobText = "";
     let meta: { filename?: string; wordCount?: number } | undefined;
@@ -97,6 +99,35 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { ok: false, error: "Missing resume file" },
           { status: 400 }
+        );
+      }
+      // Validate file type and size here; downstream expects valid inputs only
+      const filename = file.name || "resume";
+      const mimeType = file.type || filename.toLowerCase().endsWith(".pdf")
+        ? "application/pdf"
+        : filename.toLowerCase().endsWith(".docx")
+        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        : filename.toLowerCase().endsWith(".txt")
+        ? "text/plain"
+        : "application/octet-stream";
+      const arr = await file.arrayBuffer();
+      const size = arr.byteLength;
+      const MAX_BYTES = 8 * 1024 * 1024;
+      if (size > MAX_BYTES) {
+        return NextResponse.json(
+          { ok: false, requestId, error: "File too large. Please upload a file under 8MB." },
+          { status: 400, headers: { "x-request-id": requestId } }
+        );
+      }
+      const isSupported = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+      ].includes(mimeType) || filename.toLowerCase().endsWith(".pdf") || filename.toLowerCase().endsWith(".docx") || filename.toLowerCase().endsWith(".txt");
+      if (!isSupported) {
+        return NextResponse.json(
+          { ok: false, requestId, error: "Unsupported file type. Please upload a PDF, DOCX, or TXT resume." },
+          { status: 400, headers: { "x-request-id": requestId } }
         );
       }
       const extracted = await extractTextFromFile(file);
@@ -164,6 +195,26 @@ export async function POST(req: NextRequest) {
       strict: true,
     } as const;
 
+    if (demoMode) {
+      const mock = {
+        score: 78,
+        highlights: ["Strong React/Node experience", "Cloud exposure (AWS)", "Leadership on projects"],
+        missingKeywords: ["CI/CD", "Terraform", "Kubernetes"],
+        rewriteBullets: [
+          "Led migration to React 18, improving TTI by 35% and reducing bundle size 22%",
+          "Designed Node.js message pipeline handling 5M events/day with <200ms p95",
+          "Cut infra cost 18% by tuning PostgreSQL indexing and S3 lifecycle policies"
+        ],
+        atsAudit: "Use standard section headers (Experience, Education, Skills). Avoid multi-column layouts and images.",
+        coverLetterTemplate: "Dear Hiring Manager, ...",
+        generalGuidance: jobText ? "Emphasize keywords present in the JD and quantify impact." : "Tailor bullets with quantified outcomes and align to target roles.",
+        message: "ok"
+      };
+      const durationMs = Date.now() - startedAt;
+      logger.info("analyze.finish.demo", { requestId, endpoint: "/api/analyze", durationMs, ok: true });
+      return NextResponse.json({ ok: true, requestId, data: mock }, { headers: { "x-request-id": requestId } });
+    }
+
     const ai = new AIManager(process.env.OPENAI_API_KEY);
     const maxAttemptsRaw = Number(process.env.ANALYZE_AI_MAX_ATTEMPTS || 3);
     const maxAttempts = Number.isFinite(maxAttemptsRaw) && maxAttemptsRaw > 0 ? Math.floor(maxAttemptsRaw) : 3;
@@ -219,10 +270,27 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     const durationMs = Date.now() - startedAt;
-    logger.error("analyze.error", { requestId, endpoint: "/api/analyze", durationMs, error: message });
+    // Classify user errors vs server errors
+    const isUserError =
+      (typeof message === "string" && (
+        message.includes("Unsupported file type") ||
+        message.includes("File too large") ||
+        message.includes("Missing resume file") ||
+        message.includes("Resume text seems too short")
+      )) || (error instanceof z.ZodError);
+
+    const status = isUserError ? 400 : 500;
+    const publicMessage = isUserError ? message : "Unexpected server error";
+    logger[isUserError ? "warn" : "error"]("analyze.error", {
+      requestId,
+      endpoint: "/api/analyze",
+      durationMs,
+      error: message,
+      status,
+    });
     return NextResponse.json(
-      { ok: false, requestId, error: "Unexpected server error" },
-      { status: 500, headers: { "x-request-id": requestId } }
+      { ok: false, requestId, error: publicMessage },
+      { status, headers: { "x-request-id": requestId } }
     );
   }
 }
