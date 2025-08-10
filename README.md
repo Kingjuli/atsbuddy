@@ -3,10 +3,12 @@
 
 Upload a resume (PDF/DOCX/TXT), optionally paste a job description, and get a concise ATS‑focused analysis: score, missing keywords, bullet rewrites, ATS audit, and a cover letter scaffold. Admin pages provide token/cost metrics and rotating file logs.
 
-## Features: 
- - resume parsing (PDF/DOCX/TXT), JD match scoring, missing keywords, bullet rewrites, ATS audit, cover letter scaffold
- - PDF inline preview on upload for quick verification (no extra deps)
-- Admin: `/admin/metrics` for token/cost, `/admin/logs` with rotation and filters
+## Features
+- Resume parsing (PDF/DOCX/TXT) + JD match: score, missing keywords, bullet rewrites, ATS audit, cover letter scaffold
+- Drag‑and‑drop upload and inline PDF preview
+- Load sample resume + realistic JD to try instantly (no API key needed for the demo)
+- Export results: Copy/Download as Markdown
+- Admin: `/admin/metrics` (token/cost), `/admin/logs` (rotating logs with filters)
 - Privacy: files are not stored; work happens in‑process per request
 
 If this project helps you, please consider starring it — it really helps!
@@ -15,7 +17,7 @@ If this project helps you, please consider starring it — it really helps!
 
 Prereqs: Node 20+, npm
 
-1) Copy env and set required value
+1) Copy env and set required values
 
 ```bash
 cp env.example .env.local
@@ -31,6 +33,8 @@ npm run dev
 
 App runs at `http://localhost:3005` (port set in `package.json`).
 
+Tip: to try without an API key, click “Load sample” on the upload card and then “Analyze”.
+
 3) Admin access (metrics/logs)
 
 - Go to `http://localhost:3005/login`
@@ -41,12 +45,12 @@ App runs at `http://localhost:3005` (port set in `package.json`).
 ## Required
 Create `.env.local` from `env.example`.
 
-- `OPENAI_API_KEY` (required)
-- `METRICS_PASSWORD` (required)
+- `OPENAI_API_KEY`
+- `METRICS_PASSWORD`
+- `METRICS_AUTH_SECRET` (HMAC key used to sign/verify the admin auth cookie)
 
-### Optional:
+### Optional
 - AI: `OPENAI_MODEL` (default `gpt-5-nano`), `OPENAI_SERVICE_TIER` (`flex` | `auto` | `priority`, default `flex`)
-- Auth cookie: `METRICS_AUTH_SECRET` (HMAC key for admin cookie; falls back to `METRICS_PASSWORD` if unset)
 - Logging: `LOG_DIR`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_MAX_FILES`, `LOG_LEVEL`
 - Metrics storage: `METRICS_DIR`
 
