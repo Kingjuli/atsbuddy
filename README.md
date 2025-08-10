@@ -58,14 +58,12 @@ Create `.env.local` from `env.example`.
 
 Below are temporary visuals (replace with your own screenshots or a short demo video link):
 
-<img src="public/window.svg" alt="ATSBuddy UI" width="720" />
+<img src="public/demo_upload.png" alt="ATSBuddy UI" width="720" />
 
 - Home: upload resume, optional JD, run analysis
 - PDF uploads show an inline preview; TXT uploads show a short text snippet
 - Results: score, missing keywords, bullet rewrites, ATS audit, cover letter scaffold
 - Admin: metrics (token/cost/latency), logs (filter/search/group by request)
-
-Demo video (replace with your link): `[Watch 2‑minute demo]`
 
 ## Deploy
 
