@@ -45,3 +45,7 @@ next-env.d.ts
 /data
 /.logs
 /logs
+
+# misc
+TASKS.md
+PRODUCT_PLAN.md

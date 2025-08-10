@@ -1,5 +1,4 @@
 import { getListStore } from "@/lib/storage";
-import { logger } from "../logging/logger";
 
 export type MetricRecord = {
   timestamp: number;

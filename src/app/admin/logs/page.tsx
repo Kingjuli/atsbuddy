@@ -38,6 +38,7 @@ export default function LogsPage() {
       setEntries(json.entries || []);
       setNextCursor(json.nextCursor ?? null);
     } catch (e) {
+      console.error("LogsPage.load error", e);
       setErr(e instanceof Error ? e.message : "Failed to fetch");
       setEntries([]);
       setNextCursor(null);
@@ -63,6 +64,7 @@ export default function LogsPage() {
       setEntries((prev) => [...prev, ...(json.entries || [])]);
       setNextCursor(json.nextCursor ?? null);
     } catch (e) {
+      console.error("LogsPage.loadMore error", e);
       setErr(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
       setLoading(false);
@@ -99,7 +101,8 @@ export default function LogsPage() {
       try {
         const obj = Object.fromEntries(Object.entries(e).filter(([k]) => !["ts", "level", "msg"].includes(k)));
         return JSON.stringify(obj).toLowerCase().includes(q);
-      } catch {
+      } catch (err) {
+        console.error("LogsPage.filteredEntries JSON error", err);
         return false;
       }
     });

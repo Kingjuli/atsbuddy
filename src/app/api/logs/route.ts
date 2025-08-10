@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadLogs } from "@/lib/logging/logReader";
 import { AUTH_COOKIE_NAME, verifyAuthToken } from "@/lib/auth";
 import crypto from "node:crypto";
-import { logger } from "@/lib/logging/logger";
 
 export async function GET(req: NextRequest) {
   const reqId = crypto.randomUUID();
@@ -16,7 +15,6 @@ export async function GET(req: NextRequest) {
   const cursorParam = url.searchParams.get("cursor");
   const cursor = cursorParam ? Math.max(0, Number(cursorParam)) : 0;
 
-  logger.info("logs.start", { requestId: reqId, endpoint: "/api/logs", unattributed, limit, levels: levels.length });
   // Cookie-based auth; fallback to header password for first login
   const token = req.cookies.get(AUTH_COOKIE_NAME)?.value;
   const hasValidCookie = await verifyAuthToken(token);
@@ -39,7 +37,6 @@ export async function GET(req: NextRequest) {
       console.error("/api/logs: failed to set auth cookie", e);
     }
   }
-  logger.info("logs.finish", { requestId: reqId, endpoint: "/api/logs", returned: entries.length });
   return res;
 }
 

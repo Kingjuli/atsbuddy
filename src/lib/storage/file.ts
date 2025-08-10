@@ -55,6 +55,7 @@ export class FileListStore implements ListStore {
       if (a > b) return [];
       return lines.slice(a, b + 1);
     } catch (e: unknown) {
+      console.error("FileListStore.range read error", e);
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw e;
     }
@@ -71,6 +72,7 @@ export class FileListStore implements ListStore {
       const trimmed = lines.slice(startIdx).join("\n") + "\n";
       await fs.writeFile(file, trimmed, { encoding: "utf-8" });
     } catch (e: unknown) {
+      console.error("FileListStore.trimToLast error", e);
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return;
       throw e;
     }

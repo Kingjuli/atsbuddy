@@ -6,6 +6,7 @@ type PendingState = {
   filename?: string;
   words?: number;
   preview?: string;
+  pdfUrl?: string;
 };
 
 export default function Home() {
@@ -19,25 +20,77 @@ export default function Home() {
 
   const canAnalyze = useMemo(() => !!resumeFile, [resumeFile]);
 
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0] || null;
+    if (!file) return;
+    const dt = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>;
+    handleFileChange(dt);
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+  }
+
+  async function loadSample() {
+    try {
+      const res = await fetch("/samples/senior_software_engineer_java_resume.pdf");
+      const blob = await res.blob();
+      const file = new File([blob], "sample_resume.pdf", { type: "application/pdf" });
+      const dt = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>;
+      handleFileChange(dt);
+      setJobText(sampleJD);
+    } catch (e) {
+      console.error("Home.loadSample error", e);
+      setError("Failed to load sample resume");
+    }
+  }
+
+  async function copyMarkdown() {
+    if (!result?.ok) return;
+    const md = toMarkdown(result);
+    await navigator.clipboard.writeText(md);
+  }
+
+  function downloadMarkdown() {
+    if (!result?.ok) return;
+    const md = toMarkdown(result);
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "atsbuddy-analysis.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
     setResult(null);
     const file = e.target.files?.[0] || null;
     setResumeFile(file);
     if (!file) {
+      if (pending?.pdfUrl) URL.revokeObjectURL(pending.pdfUrl);
       setPending(null);
       return;
     }
     try {
       // For client-side preview only, read text for .txt. For other types, show filename.
       if (file.type === "text/plain" || file.name.toLowerCase().endsWith(".txt")) {
+        if (pending?.pdfUrl) URL.revokeObjectURL(pending.pdfUrl);
         const text = await file.text();
         const words = text.trim().split(/\s+/).filter(Boolean).length;
-        setPending({ filename: file.name, words, preview: text.slice(0, 800) });
+        setPending({ filename: file.name, words, preview: text.slice(0, 800), pdfUrl: undefined });
+      } else if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        if (pending?.pdfUrl) URL.revokeObjectURL(pending.pdfUrl);
+        const url = URL.createObjectURL(file);
+        setPending({ filename: file.name, words: undefined, preview: undefined, pdfUrl: url });
       } else {
-        setPending({ filename: file.name, words: undefined, preview: undefined });
+        if (pending?.pdfUrl) URL.revokeObjectURL(pending.pdfUrl);
+        setPending({ filename: file.name, words: undefined, preview: undefined, pdfUrl: undefined });
       }
     } catch (err) {
+      console.error("Home.handleFileChange error", err);
       const msg = err instanceof Error ? err.message : "Failed to read file";
       setError(msg);
       setPending(null);
@@ -50,6 +103,39 @@ export default function Home() {
     setError(null);
     setResult(null);
     try {
+      // If sample file is loaded, return predefined response without calling API
+      if (pending?.filename === "sample_resume.pdf" || pending?.filename?.includes("senior_software_engineer_java_resume.pdf")) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const sample: AnalysisResponse = {
+          ok: true,
+          requestId: "sample",
+          data: {
+            score: 78,
+            highlights: [
+              "Strong React/Node and TypeScript experience",
+              "Cloud exposure (AWS)",
+              "Led projects with measurable impact",
+            ],
+            missingKeywords: ["CI/CD", "Terraform", "Kubernetes"],
+            rewriteBullets: [
+              "Led migration to React 18, improving TTI by 35% and reducing bundle size 22%",
+              "Designed Node.js message pipeline handling 5M events/day with <200ms p95",
+              "Cut infra cost 18% by tuning PostgreSQL indexing and S3 lifecycle policies",
+            ],
+            atsAudit:
+              "Use standard section headers (Experience, Education, Skills). Avoid multi-column layouts and images. Prefer single-column PDF or DOCX.",
+            coverLetterTemplate:
+              "Dear Hiring Manager,\n\nI’m excited to apply for the Senior Software Engineer role. I’ve shipped production features across React/Next.js and Node.js services, with a focus on performance, reliability, and developer experience. Recently, I led a React 18 migration improving TTI 35% and built a Node-based pipeline processing 5M events/day. I’m comfortable with AWS, CI/CD, and SQL performance tuning. I’d love to bring this impact to your team.\n\nBest regards,\n[Your Name]",
+            generalGuidance:
+              jobText
+                ? "Emphasize JD keywords (React, Node.js, AWS, CI/CD). Quantify impact (latency, throughput, cost)."
+                : "Tailor bullets to target role, quantify outcomes, and align skills to job requirements.",
+            message: "ok",
+          },
+        };
+        setResult(sample);
+        return;
+      }
       const form = new FormData();
       form.append("file", resumeFile);
       form.append("jobText", jobText);
@@ -58,6 +144,7 @@ export default function Home() {
       if (!json.ok) throw new Error(json.error || "Analysis failed");
       setResult(json);
     } catch (err) {
+      console.error("Home.analyze error", err);
       const msg = err instanceof Error ? err.message : "Failed to analyze";
       setError(msg);
     } finally {
@@ -66,6 +153,7 @@ export default function Home() {
   }
 
   function resetAll() {
+    if (pending?.pdfUrl) URL.revokeObjectURL(pending.pdfUrl);
     setResumeFile(null);
     setPending(null);
     setJobText("");
@@ -86,7 +174,7 @@ export default function Home() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <section className="rounded-lg border border-foreground/10 p-4">
+          <section className="rounded-lg border border-foreground/10 p-4" onDrop={handleDrop} onDragOver={handleDragOver}>
             <h2 className="font-medium mb-3">1. Upload resume</h2>
             <input
               ref={inputRef}
@@ -95,6 +183,10 @@ export default function Home() {
               onChange={handleFileChange}
               className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-foreground file:text-background hover:file:bg-foreground/90"
             />
+            <div className="flex items-center gap-2 mt-2">
+              <button onClick={loadSample} className="px-2 py-1 rounded border border-foreground/20 text-xs">Load sample</button>
+              <span className="text-xs text-foreground/60">or drag & drop a file above</span>
+            </div>
             {pending && (
               <div className="mt-3 text-sm">
                 <div className="flex items-center justify-between">
@@ -108,6 +200,15 @@ export default function Home() {
                     {pending.preview}
                   </pre>
                 )}
+                  {pending.pdfUrl && (
+                    <div className="mt-2 h-64 border border-foreground/10 rounded overflow-hidden">
+                      <iframe
+                        src={pending.pdfUrl}
+                        className="w-full h-full"
+                        title="PDF preview"
+                      />
+                    </div>
+                  )}
               </div>
             )}
           </section>
@@ -152,6 +253,10 @@ export default function Home() {
             <div className="rounded-lg border border-foreground/10 p-4 lg:col-span-1">
               <h3 className="font-medium mb-2">Score</h3>
               <Score value={result.data?.score ?? undefined} />
+              <div className="mt-3 flex gap-2">
+                <button onClick={copyMarkdown} className="px-3 py-1.5 rounded border border-foreground/20 text-xs">Copy as Markdown</button>
+                <button onClick={downloadMarkdown} className="px-3 py-1.5 rounded border border-foreground/20 text-xs">Download .md</button>
+              </div>
               {result.data?.highlights && result.data.highlights.length > 0 && (
                 <div className="mt-4">
                   <h4 className="text-sm font-medium mb-1">Highlights</h4>
@@ -256,3 +361,62 @@ function toText(input: unknown): string {
   if (typeof input === "object") return JSON.stringify(input, null, 2);
   return String(input);
 }
+
+function toMarkdown(res: AnalysisResponse): string {
+  type AnalysisData = NonNullable<AnalysisResponse["data"]>;
+  const d: Partial<AnalysisData> = res.data ?? {};
+  const lines: string[] = [];
+  lines.push(`# ATSBuddy Analysis`);
+  if (typeof d.score === "number") lines.push(`\n**Score:** ${d.score}/100`);
+  if (Array.isArray(d.highlights) && d.highlights.length) {
+    lines.push(`\n## Highlights`);
+    for (const h of d.highlights) lines.push(`- ${String(h)}`);
+  }
+  if (Array.isArray(d.missingKeywords) && d.missingKeywords.length) {
+    lines.push(`\n## Missing keywords`);
+    lines.push(d.missingKeywords.map((k: unknown) => `- ${String(k)}`).join("\n"));
+  }
+  if (Array.isArray(d.rewriteBullets) && d.rewriteBullets.length) {
+    lines.push(`\n## Suggested bullet rewrites`);
+    for (const b of d.rewriteBullets) lines.push(`- ${String(b)}`);
+  }
+  if (typeof d.atsAudit === "string" && d.atsAudit.trim()) {
+    lines.push(`\n## ATS audit`);
+    lines.push(d.atsAudit);
+  }
+  if (typeof d.coverLetterTemplate === "string" && d.coverLetterTemplate.trim()) {
+    lines.push(`\n## Cover letter scaffold`);
+    lines.push(d.coverLetterTemplate);
+  }
+  if (typeof d.generalGuidance === "string" && d.generalGuidance.trim()) {
+    lines.push(`\n## General guidance`);
+    lines.push(d.generalGuidance);
+  }
+  return lines.join("\n");
+}
+
+const sampleJD = `
+Senior Software Engineer (Full‑Stack)
+
+About the role
+We’re building a modern web platform used by thousands of customers daily. You will design and ship end‑to‑end features across a React/Next.js frontend and Node.js APIs, working closely with design and product.
+
+Responsibilities
+- Build user‑facing features with React 18/Next.js and TypeScript
+- Design and implement Node.js/TypeScript services and APIs
+- Own quality: write tests, monitor performance, and optimize for reliability
+- Collaborate on system design, code reviews, and incremental delivery
+
+Minimum qualifications
+- 5+ years building production web applications
+- Strong with TypeScript, React, Node.js
+- Experience with SQL databases (PostgreSQL or MySQL)
+- Hands‑on with cloud platforms (AWS/GCP/Azure) and CI/CD
+
+Nice to have
+- Experience with Docker, Kubernetes, Terraform
+- Observability (OpenTelemetry, Prometheus, Grafana)
+- Performance tuning and cost optimization
+
+Keywords: React, Next.js, TypeScript, Node.js, REST, PostgreSQL, AWS, Docker, CI/CD, system design.
+`;

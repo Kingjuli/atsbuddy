@@ -23,7 +23,7 @@ function parseLines(lines: Array<unknown>): LogEntry[] {
       const obj = JSON.parse(String(raw ?? ""));
       if (obj && typeof obj === "object") entries.push(obj as LogEntry);
     } catch (e) {
-      console.error("logReader.parseLines: parse error", e);
+      console.error("logReader.parseLines parse error", e);
     }
   }
   return entries;
@@ -51,6 +51,7 @@ export async function loadLogs(params: {
     try {
       raw = (await store.range(reqKey, start, stop)) as unknown[];
     } catch (e) {
+      console.error("logReader.loadLogs range reqKey error", e);
       console.error("logReader.loadLogs: range reqKey error", e);
       raw = [];
     }
@@ -60,6 +61,7 @@ export async function loadLogs(params: {
     try {
       raw = (await store.range(LOG_KEY, start, stop)) as unknown[];
     } catch (e) {
+      console.error("logReader.loadLogs range error", e);
       console.error("logReader.loadLogs: range error", e);
       return { entries: [], nextCursor: null };
     }
