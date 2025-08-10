@@ -103,13 +103,15 @@ export async function POST(req: NextRequest) {
       }
       // Validate file type and size here; downstream expects valid inputs only
       const filename = file.name || "resume";
-      const mimeType = file.type || filename.toLowerCase().endsWith(".pdf")
-        ? "application/pdf"
-        : filename.toLowerCase().endsWith(".docx")
-        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        : filename.toLowerCase().endsWith(".txt")
-        ? "text/plain"
-        : "application/octet-stream";
+      const mimeType = file.type || (
+        filename.toLowerCase().endsWith(".pdf")
+          ? "application/pdf"
+          : filename.toLowerCase().endsWith(".docx")
+          ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          : filename.toLowerCase().endsWith(".txt")
+          ? "text/plain"
+          : "application/octet-stream"
+      );
       const arr = await file.arrayBuffer();
       const size = arr.byteLength;
       const MAX_BYTES = 8 * 1024 * 1024;
