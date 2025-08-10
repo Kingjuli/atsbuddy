@@ -1,4 +1,4 @@
-import { getListStore } from "@/lib/store";
+import { getListStore } from "@/lib/storage";
 
 export type MetricRecord = {
   timestamp: number;
@@ -18,7 +18,6 @@ const MAX_RECORDS = 500;
 const METRICS_KEY = "atsbuddy:metrics";
 
 export function recordMetric(rec: MetricRecord) {
-  // Fire-and-forget to avoid blocking hot paths
   (async () => {
     try {
       const store = getListStore();

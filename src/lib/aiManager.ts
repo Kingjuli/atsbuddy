@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { ResponseCreateParams } from "openai/resources/responses/responses";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/logging/logger";
 import { recordMetric } from "@/lib/metrics";
 
 type JsonSchemaShape = {

@@ -1,4 +1,4 @@
-import { getListStore } from "@/lib/store";
+import { getListStore } from "@/lib/storage";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -40,14 +40,8 @@ export class StoreLogger {
     return LEVEL_ORDER[level] >= LEVEL_ORDER[this.minLevel];
   }
 
-  private async persist(line: string): Promise<void> {
-    const store = getListStore();
-    await store.push(this.key, line.trim());
-    await store.trimToLast(this.key, this.maxKeep);
-  }
-
   private enqueue(operation: () => Promise<void>): void {
-    this.operationChain = this.operationChain.then(operation).catch(() => { /* swallow to keep chain alive */ });
+    this.operationChain = this.operationChain.then(operation).catch(() => { /* keep chain alive */ });
   }
 
   private formatLine(level: LogLevel, message: string, meta?: Record<string, unknown>): string {
@@ -59,6 +53,12 @@ export class StoreLogger {
     };
     const line = JSON.stringify(payload);
     return line + "\n";
+  }
+
+  private async persist(line: string): Promise<void> {
+    const store = getListStore();
+    await store.push(this.key, line.trim());
+    await store.trimToLast(this.key, this.maxKeep);
   }
 
   private async writeLine(line: string): Promise<void> { await this.persist(line); }
@@ -76,7 +76,7 @@ export class StoreLogger {
       try {
         await this.writeLine(line);
       } catch {
-        // If file write fails, fall back to console (already printed above if enabled)
+        // ignore
       }
     });
   }

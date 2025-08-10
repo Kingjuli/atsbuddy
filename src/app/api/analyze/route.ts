@@ -3,7 +3,7 @@ import { z } from "zod";
 import { extractTextFromFile } from "@/lib/parse";
 import crypto from "node:crypto";
 import { AIManager } from "@/lib/aiManager";
-import { logger } from "@/lib/logger";
+import { logger } from "@/lib/logging/logger";
 
 const AnalyzeSchema = z.object({
   resumeText: z.string().min(50, "Resume text seems too short; upload a real resume."),

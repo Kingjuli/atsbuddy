@@ -1,4 +1,4 @@
-import { getListStore } from "@/lib/store";
+import { getListStore } from "@/lib/storage";
 
 export type LogEntry = {
   ts?: string;
